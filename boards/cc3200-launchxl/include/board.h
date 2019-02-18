@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 #include "cpu.h"
-#include "nwp_conf.h"
+// #include "nwp_conf.h"
 #include "periph/timer.h"
 #include "periph/gpio.h"
 

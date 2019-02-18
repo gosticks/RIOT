@@ -15,17 +15,19 @@
  *
  * @author      Attilio Dona'
  */
-#include <inc/hw_ints.h>
-#include <inc/hw_memmap.h>
-#include <inc/hw_types.h>
-#include <stdio.h>
+// #include <vendor/hw_ints.h>
+// #include <vendor/hw_memmap.h>
+// #include <vendor/hw_types.h>
+// #include <stdio.h>
 
-#include "driverlib/interrupt.h"
-#include "driverlib/utils.h"
+// #include "driverlib/prcm.h"
+// #include "driverlib/interrupt.h"
+// #include "driverlib/utils.h"
 
+#include "cpu.h"
 #include "board.h"
 
-#include "periph/gpio.h"
+// #include "periph/gpio.h"
 
 /**
  * @brief Initialize on-board LEDs
@@ -40,9 +42,9 @@ void led_init(void)
     gpio_clear(LED_RED);
     gpio_clear(LED_GREEN);
     gpio_clear(LED_YELLOW);
-}
 
-extern const void *interrupt_vector[];
+    LED_RED_ON;
+}
 
 /**
  * @brief Initialize the board
