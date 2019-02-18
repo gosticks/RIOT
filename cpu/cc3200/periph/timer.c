@@ -30,9 +30,13 @@
 #include "driverlib/timer.h"
 #include "driverlib/prcm.h"
 
-#include <inc/hw_memmap.h>
-#include <inc/hw_timer.h>
-#include <inc/hw_types.h>
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_timer.h"
+#include "vendor/hw_types.h"
+
+#ifndef UNUSED
+#define UNUSED(x) ((x) = (x))
+#endif
 
 #define MAX_TIMERS TIMER_UNDEFINED
 

@@ -31,7 +31,7 @@
 #endif
 
 /* guard this file in case no SPI device is defined */
-#if SPI_NUMOF
+// #if SPI_NUMOF
 
 static unsigned long bitrate[] = {
     [SPI_CLK_100KHZ] = 100000,
@@ -59,10 +59,10 @@ static mutex_t lock = MUTEX_INIT;
 int spi_init_master(spi_t dev, spi_mode_t conf, spi_clk_t speed)
 {
     // cc3200 has only one SPI for external use
-    if (dev >= SPI_UNDEF) // || dev != SPI_DEV)
-    {
-        return -1;
-    }
+    // if (dev >= SPI_UNDEF) // || dev != SPI_DEV)
+    // {
+    //     return -1;
+    // }
 
     MAP_PRCMPeripheralClkEnable(PRCM_GSPI, PRCM_RUN_MODE_CLK);
 
@@ -232,4 +232,4 @@ void spi_transmission_begin(spi_t dev, char reset_val)
     /* spi slave is not implemented */
 }
 
-#endif /* SPI_NUMOF */
+// #endif /* SPI_NUMOF */

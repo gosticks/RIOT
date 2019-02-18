@@ -45,9 +45,6 @@
 //*****************************************************************************
 #include "utils.h"
 
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
 
 //*****************************************************************************
 //
@@ -65,19 +62,18 @@
 //
 //*****************************************************************************
 #if defined(ewarm) || defined(DOXYGEN)
-void UtilsDelay(unsigned long ulCount)
+void
+UtilsDelay(unsigned long ulCount)
 {
-    UNUSED(ulCount);
     __asm("    subs    r0, #1\n"
           "    bne.n   UtilsDelay\n");
 }
 #endif
 
-#if defined(gcc)
+#if defined(__GNUC__)
 void __attribute__((naked))
 UtilsDelay(unsigned long ulCount)
 {
-    UNUSED(ulCount);
     __asm("    subs    r0, #1\n"
           "    bne     UtilsDelay\n"
           "    bx      lr");
@@ -89,15 +85,15 @@ UtilsDelay(unsigned long ulCount)
 // compiler from doing funny things with the optimizer.
 //
 #if defined(ccs)
-__asm("    .sect \".text:UtilsDelay\"\n"
-      "    .clink\n"
-      "    .thumbfunc UtilsDelay\n"
-      "    .thumb\n"
-      "    .global UtilsDelay\n"
-      "UtilsDelay:\n"
-      "    subs r0, #1\n"
-      "    bne.n UtilsDelay\n"
-      "    bx lr\n");
+    __asm("    .sect \".text:UtilsDelay\"\n"
+          "    .clink\n"
+          "    .thumbfunc UtilsDelay\n"
+          "    .thumb\n"
+          "    .global UtilsDelay\n"
+          "UtilsDelay:\n"
+          "    subs r0, #1\n"
+          "    bne.n UtilsDelay\n"
+          "    bx lr\n");
 #endif
 
 //*****************************************************************************

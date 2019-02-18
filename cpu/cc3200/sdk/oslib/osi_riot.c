@@ -32,7 +32,7 @@
 #include "nwp_conf.h"
 
 /* Priority 5, or 160 as only the top three bits are implemented. */
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY (1 << 5)
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY    ( 1 << 5 )
 
 #ifndef MALLOC_SL_OBJECTS
 
@@ -42,49 +42,29 @@
 #define MUTEX_TRYLOCK(id) mutex_trylock(&osi_mutexes[(int)id])
 #define MUTEX_UNLOCK(id) mutex_unlock(&osi_mutexes[(int)id])
 
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
-
 static int synchronizer[MAX_SYNC_OBJS + 1];
 
 static mutex_t osi_mutexes[MAX_SYNC_OBJS];
 
 static int uxCriticalNesting = 0;
 
-__attribute__((weak)) void SimpleLinkWlanEventHandler(SlWlanEvent_t *pSlWlanEvent)
-{
-    UNUSED(pSlWlanEvent);
-};
 
-__attribute__((weak)) void SimpleLinkSockEventHandler(SlSockEvent_t *pSlSockEvent)
-{
-    UNUSED(pSlSockEvent);
-};
+__attribute__ ((weak)) void SimpleLinkWlanEventHandler(SlWlanEvent_t* pSlWlanEvent) {};
 
-__attribute__((weak)) void SimpleLinkNetAppEventHandler(SlNetAppEvent_t *pSlNetApp)
-{
-    UNUSED(pSlNetApp);
-};
+__attribute__ ((weak)) void SimpleLinkSockEventHandler(SlSockEvent_t* pSlSockEvent) {};
 
-__attribute__((weak)) void SimpleLinkHttpServerCallback(SlHttpServerEvent_t *pSlHttpServerEvent,
-                                                        SlHttpServerResponse_t *pSlHttpServerResponse)
-{
-    UNUSED(pSlHttpServerEvent);
-    UNUSED(pSlHttpServerResponse);
-};
+__attribute__ ((weak)) void SimpleLinkNetAppEventHandler(SlNetAppEvent_t* pSlNetApp) {};
 
-__attribute__((weak)) void SimpleLinkGeneralEventHandler(SlDeviceEvent_t *pDevEvent)
-{
-    UNUSED(pDevEvent);
-};
+__attribute__ ((weak)) void SimpleLinkHttpServerCallback(SlHttpServerEvent_t *pSlHttpServerEvent,
+        SlHttpServerResponse_t *pSlHttpServerResponse) {};
 
-void init_sync_pool(void)
-{
+__attribute__ ((weak)) void SimpleLinkGeneralEventHandler(SlDeviceEvent_t *pDevEvent) {};
+
+
+void init_sync_pool(void) {
     lifo_init(synchronizer, MAX_SYNC_OBJS);
 
-    for (int i = 0; i < MAX_SYNC_OBJS; i++)
-    {
+    for(int i=0; i<MAX_SYNC_OBJS; i++) {
         lifo_insert(synchronizer, i);
         mutex_init(&osi_mutexes[i]);
     }
@@ -97,9 +77,12 @@ void init_sync_pool(void)
 
 #endif
 
+
 // network processor status and config handle
 nwp_t nwp = {
-    .role = ROLE_INVALID};
+        .role = ROLE_INVALID
+};
+
 
 #define OSI_MSG_TYPE 0xBEEF
 
@@ -111,9 +94,8 @@ nwp_t nwp = {
 
 #define QUEUE_SIZE_SLSPAWN (8U)
 
-typedef struct osi_task_list
-{
-    char *stack;
+typedef struct osi_task_list {
+    char* stack;
     uint8_t busy;
 } osi_task_list_t;
 
@@ -121,15 +103,14 @@ static kernel_pid_t sl_spawn_id;
 
 static char *simplelink_stack;
 
+
 //Local function definition
 static void vSimpleLinkSpawnTask(void *pvParameters);
 
-int init_queue(kernel_pid_t tid, msg_t *array, int num)
-{
+int init_queue(kernel_pid_t tid, msg_t *array, int num) {
     /* check if num is a power of two by comparing to its complement */
-    if (num && (num & (num - 1)) == 0)
-    {
-        thread_t *me = (thread_t *)thread_get(tid);
+    if (num && (num & (num - 1)) == 0) {
+        thread_t *me = (thread_t*) thread_get(tid);
         me->msg_array = array;
         cib_init(&(me->msg_queue), num);
         return 0;
@@ -154,9 +135,8 @@ int init_queue(kernel_pid_t tid, msg_t *array, int num)
  \warning
  */
 OsiReturnVal_e osi_InterruptRegister(int iIntrNum, P_OSI_INTR_ENTRY pEntry,
-                                     unsigned char ucPriority)
-{
-    MAP_IntRegister(iIntrNum, (void (*)(void))pEntry);
+        unsigned char ucPriority) {
+    MAP_IntRegister(iIntrNum, (void (*)(void)) pEntry);
     MAP_IntPrioritySet(iIntrNum, ucPriority);
     MAP_IntEnable(iIntrNum);
     return OSI_OK;
@@ -172,8 +152,7 @@ OsiReturnVal_e osi_InterruptRegister(int iIntrNum, P_OSI_INTR_ENTRY pEntry,
  \note
  \warning
  */
-void osi_InterruptDeRegister(int iIntrNum)
-{
+void osi_InterruptDeRegister(int iIntrNum) {
     MAP_IntDisable(iIntrNum);
     MAP_IntUnregister(iIntrNum);
 }
@@ -191,11 +170,9 @@ void osi_InterruptDeRegister(int iIntrNum)
  \note
  \warning
  */
-OsiReturnVal_e osi_SyncObjCreate(OsiSyncObj_t *pSyncObj)
-{
+OsiReturnVal_e osi_SyncObjCreate(OsiSyncObj_t* pSyncObj) {
     //Check for NULL
-    if (NULL == pSyncObj)
-    {
+    if (NULL == pSyncObj) {
         return OSI_INVALID_PARAMS;
     }
 
@@ -219,11 +196,9 @@ OsiReturnVal_e osi_SyncObjCreate(OsiSyncObj_t *pSyncObj)
  \note
  \warning
  */
-OsiReturnVal_e osi_SyncObjDelete(OsiSyncObj_t *pSyncObj)
-{
+OsiReturnVal_e osi_SyncObjDelete(OsiSyncObj_t* pSyncObj) {
     //Check for NULL
-    if (NULL == pSyncObj)
-    {
+    if (NULL == pSyncObj) {
         return OSI_INVALID_PARAMS;
     }
 
@@ -248,11 +223,9 @@ OsiReturnVal_e osi_SyncObjDelete(OsiSyncObj_t *pSyncObj)
  \note		the function could be called from ISR context
  \warning
  */
-OsiReturnVal_e osi_SyncObjSignal(OsiSyncObj_t *pSyncObj)
-{
+OsiReturnVal_e osi_SyncObjSignal(OsiSyncObj_t* pSyncObj) {
     //Check for NULL
-    if (NULL == pSyncObj)
-    {
+    if (NULL == pSyncObj) {
         return OSI_INVALID_PARAMS;
     }
 
@@ -273,18 +246,15 @@ OsiReturnVal_e osi_SyncObjSignal(OsiSyncObj_t *pSyncObj)
  \note		the function is called from ISR context
  \warning
  */
-OsiReturnVal_e osi_SyncObjSignalFromISR(OsiSyncObj_t *pSyncObj)
-{
+OsiReturnVal_e osi_SyncObjSignalFromISR(OsiSyncObj_t* pSyncObj) {
     //Check for NULL
-    if (NULL == pSyncObj)
-    {
+    if (NULL == pSyncObj) {
         return OSI_INVALID_PARAMS;
     }
 
     MUTEX_UNLOCK(*pSyncObj);
 
-    if (sched_context_switch_request)
-    {
+    if (sched_context_switch_request) {
         thread_yield();
     }
 
@@ -306,27 +276,22 @@ OsiReturnVal_e osi_SyncObjSignalFromISR(OsiSyncObj_t *pSyncObj)
  \note
  \warning
  */
-OsiReturnVal_e osi_SyncObjWait(OsiSyncObj_t *pSyncObj, OsiTime_t Timeout)
-{
+OsiReturnVal_e osi_SyncObjWait(OsiSyncObj_t* pSyncObj, OsiTime_t Timeout) {
     //Check for NULL
-    if (NULL == pSyncObj)
-    {
+    if (NULL == pSyncObj) {
         return OSI_INVALID_PARAMS;
     }
 
-    if (Timeout == OSI_NO_WAIT)
-    {
-        if (!MUTEX_TRYLOCK(*pSyncObj))
-        {
+    if (Timeout == OSI_NO_WAIT) {
+        if (!MUTEX_TRYLOCK(*pSyncObj)) {
             return OSI_OPERATION_FAILED;
         }
-    }
-    else
-    {
+    } else {
         MUTEX_LOCK(*pSyncObj);
     }
 
     return OSI_OK;
+
 }
 
 /*!
@@ -339,20 +304,15 @@ OsiReturnVal_e osi_SyncObjWait(OsiSyncObj_t *pSyncObj, OsiTime_t Timeout)
  \note
  \warning
  */
-OsiReturnVal_e osi_SyncObjClear(OsiSyncObj_t *pSyncObj)
-{
+OsiReturnVal_e osi_SyncObjClear(OsiSyncObj_t* pSyncObj) {
     //Check for NULL
-    if (NULL == pSyncObj)
-    {
+    if (NULL == pSyncObj) {
         return OSI_INVALID_PARAMS;
     }
 
-    if (OSI_OK == osi_SyncObjWait(pSyncObj, 0))
-    {
+    if (OSI_OK == osi_SyncObjWait(pSyncObj, 0)) {
         return OSI_OK;
-    }
-    else
-    {
+    } else {
         return OSI_OPERATION_FAILED;
     }
 }
@@ -370,11 +330,9 @@ OsiReturnVal_e osi_SyncObjClear(OsiSyncObj_t *pSyncObj)
  \note
  \warning
  */
-OsiReturnVal_e osi_LockObjCreate(OsiLockObj_t *pLockObj)
-{
+OsiReturnVal_e osi_LockObjCreate(OsiLockObj_t* pLockObj) {
     //Check for NULL
-    if (NULL == pLockObj)
-    {
+    if (NULL == pLockObj) {
         return OSI_INVALID_PARAMS;
     }
 
@@ -386,6 +344,7 @@ OsiReturnVal_e osi_LockObjCreate(OsiLockObj_t *pLockObj)
     *pLockObj = (OsiSyncObj_t)lifo_get(synchronizer);
 #endif
     return OSI_OK;
+
 }
 
 #if 0
@@ -467,8 +426,7 @@ void osi_TaskDelete(OsiTaskHandle* pTaskHandle) {
  \note
  \warning
  */
-OsiReturnVal_e osi_LockObjDelete(OsiLockObj_t *pLockObj)
-{
+OsiReturnVal_e osi_LockObjDelete(OsiLockObj_t* pLockObj) {
     //vSemaphoreDelete((SemaphoreHandle_t)*pLockObj );
 #ifdef MALLOC_SL_OBJECTS
     free(*pLockObj);
@@ -498,27 +456,22 @@ OsiReturnVal_e osi_LockObjDelete(OsiLockObj_t *pLockObj)
  \note
  \warning
  */
-OsiReturnVal_e osi_LockObjLock(OsiLockObj_t *pLockObj, OsiTime_t Timeout)
-{
+OsiReturnVal_e osi_LockObjLock(OsiLockObj_t* pLockObj, OsiTime_t Timeout) {
     //Check for NULL
-    if (NULL == pLockObj)
-    {
+    if (NULL == pLockObj) {
         return OSI_INVALID_PARAMS;
     }
 
-    if (Timeout == OSI_NO_WAIT)
-    {
-        if (!MUTEX_TRYLOCK(*pLockObj))
-        {
+    if (Timeout == OSI_NO_WAIT) {
+        if (!MUTEX_TRYLOCK(*pLockObj)) {
             return OSI_OPERATION_FAILED;
         }
-    }
-    else
-    {
+    } else {
         MUTEX_LOCK(*pLockObj);
     }
 
     return OSI_OK;
+
 }
 
 /*!
@@ -531,17 +484,16 @@ OsiReturnVal_e osi_LockObjLock(OsiLockObj_t *pLockObj, OsiTime_t Timeout)
  \note
  \warning
  */
-OsiReturnVal_e osi_LockObjUnlock(OsiLockObj_t *pLockObj)
-{
+OsiReturnVal_e osi_LockObjUnlock(OsiLockObj_t* pLockObj) {
     //Check for NULL
-    if (NULL == pLockObj)
-    {
+    if (NULL == pLockObj) {
         return OSI_INVALID_PARAMS;
     }
 
     MUTEX_UNLOCK(*pLockObj);
 
     return OSI_OK;
+
 }
 
 /*!
@@ -561,11 +513,9 @@ OsiReturnVal_e osi_LockObjUnlock(OsiLockObj_t *pLockObj)
  \note
  \warning
  */
-OsiReturnVal_e osi_Spawn(P_OSI_SPAWN_ENTRY pEntry, void *pValue,
-                         unsigned long flags)
-{
-    UNUSED(flags);
-    tSimpleLinkSpawnMsg *msg_ptr;
+OsiReturnVal_e osi_Spawn(P_OSI_SPAWN_ENTRY pEntry, void* pValue,
+        unsigned long flags) {
+    tSimpleLinkSpawnMsg* msg_ptr;
     msg_t riot_msg;
 
     msg_ptr = malloc(sizeof(tSimpleLinkSpawnMsg));
@@ -574,12 +524,11 @@ OsiReturnVal_e osi_Spawn(P_OSI_SPAWN_ENTRY pEntry, void *pValue,
     msg_ptr->pValue = pValue;
 
     riot_msg.type = OSI_MSG_TYPE;
-    riot_msg.content.ptr = (char *)msg_ptr;
+    riot_msg.content.ptr = (char*) msg_ptr;
 
     msg_send(&riot_msg, sl_spawn_id);
 
-    if (sched_context_switch_request)
-    {
+    if (sched_context_switch_request) {
         thread_yield();
     }
     return OSI_OK;
@@ -594,21 +543,18 @@ OsiReturnVal_e osi_Spawn(P_OSI_SPAWN_ENTRY pEntry, void *pValue,
  \note
  \warning
  */
-void vSimpleLinkSpawnTask(void *pvParameters)
-{
-    UNUSED(pvParameters);
+void vSimpleLinkSpawnTask(void *pvParameters) {
     msg_t msg, msg_queue[QUEUE_SIZE_SLSPAWN];
-    tSimpleLinkSpawnMsg *msg_ptr;
+    tSimpleLinkSpawnMsg* msg_ptr;
 
     //simplelink_started = 1;
 
     /* setup the message queue */
     msg_init_queue(msg_queue, QUEUE_SIZE_SLSPAWN);
 
-    for (;;)
-    {
+    for (;;) {
         msg_receive(&msg);
-        msg_ptr = (tSimpleLinkSpawnMsg *)msg.content.ptr;
+        msg_ptr = (tSimpleLinkSpawnMsg*) msg.content.ptr;
 
         msg_ptr->pEntry(msg_ptr->pValue);
 
@@ -625,8 +571,7 @@ void vSimpleLinkSpawnTask(void *pvParameters)
  \note
  \warning
  */
-OsiReturnVal_e VStartSimpleLinkSpawnTask(unsigned long uxPriority)
-{
+OsiReturnVal_e VStartSimpleLinkSpawnTask(unsigned long uxPriority) {
 
 #ifndef MALLOC_SL_OBJECTS
     init_sync_pool();
@@ -635,13 +580,14 @@ OsiReturnVal_e VStartSimpleLinkSpawnTask(unsigned long uxPriority)
     simplelink_stack = malloc(THREAD_STACKSIZE_SLSPAWN);
 
     sl_spawn_id = thread_create(simplelink_stack, THREAD_STACKSIZE_SLSPAWN, uxPriority,
-                                THREAD_CREATE_STACKTEST, (thread_task_func_t)vSimpleLinkSpawnTask, NULL,
-                                (const char *)"SLSPAWN");
+    		THREAD_CREATE_STACKTEST, (thread_task_func_t) vSimpleLinkSpawnTask, NULL,
+            (const char*) "SLSPAWN");
 
     DEBUG("spawn tid: %d\n", sl_spawn_id);
 
     return OSI_OK;
 }
+
 
 /*!
  \brief 	This is the API to delete SL spawn task and delete the SL queue
@@ -652,10 +598,11 @@ OsiReturnVal_e VStartSimpleLinkSpawnTask(unsigned long uxPriority)
  \note
  \warning
  */
-void VDeleteSimpleLinkSpawnTask(void)
+void VDeleteSimpleLinkSpawnTask( void )
 {
     free(simplelink_stack);
 }
+
 
 /*!
  \brief 	This function is used to create the MsgQ
@@ -669,12 +616,8 @@ void VDeleteSimpleLinkSpawnTask(void)
  \note
  \warning
  */
-OsiReturnVal_e osi_MsgQCreate(OsiMsgQ_t *pMsgQ, char *pMsgQName,
-                              unsigned long MsgSize, unsigned long MaxMsgs)
-{
-    UNUSED(pMsgQName);
-    UNUSED(MsgSize);
-    UNUSED(MaxMsgs);
+OsiReturnVal_e osi_MsgQCreate(OsiMsgQ_t* pMsgQ, char* pMsgQName,
+        unsigned long MsgSize, unsigned long MaxMsgs) {
     *pMsgQ = malloc(sizeof(msg_t));
 
     return OSI_OK;
@@ -689,11 +632,9 @@ OsiReturnVal_e osi_MsgQCreate(OsiMsgQ_t *pMsgQ, char *pMsgQName,
  \note
  \warning
  */
-OsiReturnVal_e osi_MsgQDelete(OsiMsgQ_t *pMsgQ)
-{
+OsiReturnVal_e osi_MsgQDelete(OsiMsgQ_t* pMsgQ) {
     //Check for NULL
-    if (NULL == pMsgQ)
-    {
+    if (NULL == pMsgQ) {
         return OSI_INVALID_PARAMS;
     }
 
@@ -713,16 +654,13 @@ OsiReturnVal_e osi_MsgQDelete(OsiMsgQ_t *pMsgQ)
  \note
  \warning
  */
-OsiReturnVal_e osi_MsgQWrite(OsiMsgQ_t *pMsgQ, void *pMsg, OsiTime_t Timeout)
-{
-    UNUSED(Timeout);
+OsiReturnVal_e osi_MsgQWrite(OsiMsgQ_t* pMsgQ, void* pMsg, OsiTime_t Timeout) {
     //Check for NULL
-    if (NULL == pMsgQ)
-    {
+    if (NULL == pMsgQ) {
         return OSI_INVALID_PARAMS;
     }
 
-    msg_send(pMsg, *(kernel_pid_t *)pMsgQ);
+    msg_send(pMsg, *(kernel_pid_t*) pMsgQ);
     return OSI_OK;
 }
 
@@ -737,16 +675,13 @@ OsiReturnVal_e osi_MsgQWrite(OsiMsgQ_t *pMsgQ, void *pMsg, OsiTime_t Timeout)
  \note
  \warning
  */
-OsiReturnVal_e osi_MsgQRead(OsiMsgQ_t *pMsgQ, void *pMsg, OsiTime_t Timeout)
-{
-    UNUSED(Timeout);
+OsiReturnVal_e osi_MsgQRead(OsiMsgQ_t* pMsgQ, void* pMsg, OsiTime_t Timeout) {
     //Check for NULL
-    if (NULL == pMsgQ)
-    {
+    if (NULL == pMsgQ) {
         return OSI_INVALID_PARAMS;
     }
 
-    msg_receive((msg_t *)pMsg);
+    msg_receive((msg_t *) pMsg);
 
     return OSI_OK;
 }
@@ -758,35 +693,38 @@ OsiReturnVal_e osi_MsgQRead(OsiMsgQ_t *pMsgQ, void *pMsg, OsiTime_t Timeout)
  \note
  \warning
 */
-void osi_Sleep(unsigned int MilliSecs)
-{
+void osi_Sleep(unsigned int MilliSecs) {
     xtimer_usleep(MilliSecs * 80000);
 }
 
-__attribute__((naked)) uint32_t ulPortSetInterruptMask(void)
+__attribute__(( naked )) uint32_t ulPortSetInterruptMask( void )
 {
-    __asm volatile(
-        "	mrs r0, basepri											\n"
-        "	mov r1, %0												\n"
-        "	msr basepri, r1											\n"
-        "	bx lr													\n" ::"i"(configMAX_SYSCALL_INTERRUPT_PRIORITY)
-        : "r0", "r1");
+	__asm volatile														\
+	(																	\
+		"	mrs r0, basepri											\n" \
+		"	mov r1, %0												\n"	\
+		"	msr basepri, r1											\n" \
+		"	bx lr													\n" \
+		:: "i" ( configMAX_SYSCALL_INTERRUPT_PRIORITY ) : "r0", "r1"	\
+	);
 
-    /* This return will not be reached but is necessary to prevent compiler
+	/* This return will not be reached but is necessary to prevent compiler
 	warnings. */
-    return 0;
+	return 0;
 }
 /*-----------------------------------------------------------*/
 
-__attribute__((naked)) void vPortClearInterruptMask(uint32_t ulNewMaskValue)
+__attribute__(( naked )) void vPortClearInterruptMask( uint32_t ulNewMaskValue )
 {
-    __asm volatile(
-        "	msr basepri, r0										\n"
-        "	bx lr												\n" ::
-            : "r0");
+	__asm volatile													\
+	(																\
+		"	msr basepri, r0										\n"	\
+		"	bx lr												\n" \
+		:::"r0"														\
+	);
 
-    /* Just to avoid compiler warnings. */
-    (void)ulNewMaskValue;
+	/* Just to avoid compiler warnings. */
+	( void ) ulNewMaskValue;
 }
 
 /*!
@@ -798,11 +736,11 @@ __attribute__((naked)) void vPortClearInterruptMask(uint32_t ulNewMaskValue)
 */
 unsigned long osi_EnterCritical(void)
 {
-    // portDISABLE_INTERRUPTS();
-    ulPortSetInterruptMask();
-    uxCriticalNesting++;
-    __asm volatile("dsb");
-    __asm volatile("isb");
+	// portDISABLE_INTERRUPTS();
+	ulPortSetInterruptMask();
+	uxCriticalNesting++;
+	__asm volatile( "dsb" );
+	__asm volatile( "isb" );
 
     return 0;
 }
@@ -816,27 +754,25 @@ unsigned long osi_EnterCritical(void)
 */
 void osi_ExitCritical(unsigned long ulKey)
 {
-    UNUSED(ulKey);
-    //configASSERT(uxCriticalNesting);
-    uxCriticalNesting--;
-    if (uxCriticalNesting == 0)
-    {
-        //portENABLE_INTERRUPTS();
-        vPortClearInterruptMask(0);
-    }
+	//configASSERT(uxCriticalNesting);
+	uxCriticalNesting--;
+	if( uxCriticalNesting == 0 )
+	{
+		//portENABLE_INTERRUPTS();
+		vPortClearInterruptMask(0);
+	}
+
 }
 
-void cc3200_reset(void)
-{
-    if (nwp.status & (1 << STATUS_BIT_CONNECTION))
-    {
+
+void cc3200_reset(void) {
+    if (nwp.status & (1<<STATUS_BIT_CONNECTION)) {
         sl_Stop(SL_STOP_TIMEOUT);
         MAP_PRCMHibernateIntervalSet(330);
         MAP_PRCMHibernateWakeupSourceEnable(PRCM_HIB_SLOW_CLK_CTR);
         MAP_PRCMHibernateEnter();
-    }
-    else
-    {
+    } else {
         MAP_PRCMMCUReset(1);
     }
 }
+

@@ -39,10 +39,6 @@
 //*****************************************************************************
 #include "cpu.h"
 
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
-
 //*****************************************************************************
 //
 // Wrapper function for the CPSID instruction.  Returns the state of PRIMASK
@@ -63,7 +59,7 @@ CPUcpsid(void)
           "    dsb      \n"
           "    isb      \n"
           "    bx      lr\n"
-          : "=r"(ulRet));
+          : "=r" (ulRet));
 
     //
     // The return is handled in the inline assembly, but the compiler will
@@ -71,10 +67,9 @@ CPUcpsid(void)
     // that this does not result in any code being produced because of the
     // naked attribute).
     //
-    return (ulRet);
+    return(ulRet);
 }
 #endif
-
 #if defined(ewarm)
 unsigned long
 CPUcpsid(void)
@@ -92,9 +87,9 @@ CPUcpsid(void)
     // is suppressed here to avoid putting a "bx lr" in the inline assembly
     // above and a superfluous return statement here.
     //
-#pragma diag_suppress = Pe940
+#pragma diag_suppress=Pe940
 }
-#pragma diag_default = Pe940
+#pragma diag_default=Pe940
 #endif
 #if defined(ccs)
 unsigned long
@@ -116,7 +111,7 @@ CPUcpsid(void)
     // return(0) is never executed and the function returns with the value
     // you expect in R0.
     //
-    return (0);
+    return(0);
 }
 #endif
 
@@ -126,7 +121,7 @@ CPUcpsid(void)
 // interrupts are enabled or disabled).
 //
 //*****************************************************************************
-#if defined(gcc)
+#if defined(__GNUC__)
 unsigned long __attribute__((naked))
 CPUprimask(void)
 {
@@ -137,7 +132,7 @@ CPUprimask(void)
     //
     __asm("    mrs     r0, PRIMASK\n"
           "    bx      lr\n"
-          : "=r"(ulRet));
+          : "=r" (ulRet));
 
     //
     // The return is handled in the inline assembly, but the compiler will
@@ -145,7 +140,7 @@ CPUprimask(void)
     // that this does not result in any code being produced because of the
     // naked attribute).
     //
-    return (ulRet);
+    return(ulRet);
 }
 #endif
 #if defined(ewarm)
@@ -162,9 +157,9 @@ CPUprimask(void)
     // is suppressed here to avoid putting a "bx lr" in the inline assembly
     // above and a superfluous return statement here.
     //
-#pragma diag_suppress = Pe940
+#pragma diag_suppress=Pe940
 }
-#pragma diag_default = Pe940
+#pragma diag_default=Pe940
 #endif
 #if defined(ccs)
 unsigned long
@@ -183,7 +178,7 @@ CPUprimask(void)
     // return(0) is never executed and the function returns with the value
     // you expect in R0.
     //
-    return (0);
+    return(0);
 }
 #endif
 
@@ -193,7 +188,7 @@ CPUprimask(void)
 // on entry.
 //
 //*****************************************************************************
-#if defined(gcc)
+#if defined(__GNUC__)
 unsigned long __attribute__((naked))
 CPUcpsie(void)
 {
@@ -207,7 +202,7 @@ CPUcpsie(void)
           "    dsb      \n"
           "    isb      \n"
           "    bx      lr\n"
-          : "=r"(ulRet));
+          : "=r" (ulRet));
 
     //
     // The return is handled in the inline assembly, but the compiler will
@@ -215,7 +210,7 @@ CPUcpsie(void)
     // that this does not result in any code being produced because of the
     // naked attribute).
     //
-    return (ulRet);
+    return(ulRet);
 }
 #endif
 #if defined(ewarm)
@@ -235,9 +230,9 @@ CPUcpsie(void)
     // is suppressed here to avoid putting a "bx lr" in the inline assembly
     // above and a superfluous return statement here.
     //
-#pragma diag_suppress = Pe940
+#pragma diag_suppress=Pe940
 }
-#pragma diag_default = Pe940
+#pragma diag_default=Pe940
 #endif
 #if defined(ccs)
 unsigned long
@@ -259,7 +254,7 @@ CPUcpsie(void)
     // return(0) is never executed and the function returns with the value
     // you expect in R0.
     //
-    return (0);
+    return(0);
 }
 #endif
 
@@ -268,7 +263,7 @@ CPUcpsie(void)
 // Wrapper function for the WFI instruction.
 //
 //*****************************************************************************
-#if defined(gcc)
+#if defined(__GNUC__)
 void __attribute__((naked))
 CPUwfi(void)
 {
@@ -282,7 +277,8 @@ CPUwfi(void)
 }
 #endif
 #if defined(ewarm)
-void CPUwfi(void)
+void
+CPUwfi(void)
 {
     //
     // Wait for the next interrupt.
@@ -293,7 +289,8 @@ void CPUwfi(void)
 }
 #endif
 #if defined(ccs)
-void CPUwfi(void)
+void
+CPUwfi(void)
 {
     //
     // Wait for the next interrupt.
@@ -309,12 +306,10 @@ void CPUwfi(void)
 // Wrapper function for writing the BASEPRI register.
 //
 //*****************************************************************************
-#if defined(gcc)
+#if defined(__GNUC__)
 void __attribute__((naked))
 CPUbasepriSet(unsigned long ulNewBasepri)
 {
-
-    UNUSED(ulNewBasepri);
 
     //
     // Set the BASEPRI register
@@ -326,7 +321,8 @@ CPUbasepriSet(unsigned long ulNewBasepri)
 }
 #endif
 #if defined(ewarm)
-void CPUbasepriSet(unsigned long ulNewBasepri)
+void
+CPUbasepriSet(unsigned long ulNewBasepri)
 {
     //
     // Set the BASEPRI register
@@ -337,7 +333,8 @@ void CPUbasepriSet(unsigned long ulNewBasepri)
 }
 #endif
 #if defined(ccs)
-void CPUbasepriSet(unsigned long ulNewBasepri)
+void
+CPUbasepriSet(unsigned long ulNewBasepri)
 {
     //
     // Set the BASEPRI register
@@ -353,7 +350,7 @@ void CPUbasepriSet(unsigned long ulNewBasepri)
 // Wrapper function for reading the BASEPRI register.
 //
 //*****************************************************************************
-#if defined(gcc)
+#if defined(__GNUC__)
 unsigned long __attribute__((naked))
 CPUbasepriGet(void)
 {
@@ -364,7 +361,7 @@ CPUbasepriGet(void)
     //
     __asm("    mrs     r0, BASEPRI\n"
           "    bx      lr\n"
-          : "=r"(ulRet));
+          : "=r" (ulRet));
 
     //
     // The return is handled in the inline assembly, but the compiler will
@@ -372,7 +369,7 @@ CPUbasepriGet(void)
     // that this does not result in any code being produced because of the
     // naked attribute).
     //
-    return (ulRet);
+    return(ulRet);
 }
 #endif
 #if defined(ewarm)
@@ -389,9 +386,9 @@ CPUbasepriGet(void)
     // is suppressed here to avoid putting a "bx lr" in the inline assembly
     // above and a superfluous return statement here.
     //
-#pragma diag_suppress = Pe940
+#pragma diag_suppress=Pe940
 }
-#pragma diag_default = Pe940
+#pragma diag_default=Pe940
 #endif
 #if defined(ccs)
 unsigned long
@@ -410,6 +407,6 @@ CPUbasepriGet(void)
     // return(0) is never executed and the function returns with the value
     // you expect in R0.
     //
-    return (0);
+    return(0);
 }
 #endif

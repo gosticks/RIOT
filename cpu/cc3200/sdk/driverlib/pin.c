@@ -44,9 +44,9 @@
 //
 //*****************************************************************************
 
-#include "inc/hw_types.h"
-#include "inc/hw_memmap.h"
-#include "inc/hw_ocp_shared.h"
+#include "vendor/hw_types.h"
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_ocp_shared.h"
 #include "pin.h"
 
 //*****************************************************************************
@@ -57,9 +57,7 @@
 #define PAD_TYPE_MASK 0x00000310
 #define PAD_CONFIG_BASE ((OCP_SHARED_BASE + \
                           OCP_SHARED_O_GPIO_PAD_CONFIG_0))
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
+
 //*****************************************************************************
 // PIN to PAD matrix
 //*****************************************************************************
@@ -600,7 +598,6 @@ void PinTypeGPIO(unsigned long ulPin, unsigned long ulPinMode, tBoolean bOpenDra
 //*****************************************************************************
 void PinTypeADC(unsigned long ulPin, unsigned long ulPinMode)
 {
-  UNUSED(ulPinMode);
   //
   // Configure the Pin
   //

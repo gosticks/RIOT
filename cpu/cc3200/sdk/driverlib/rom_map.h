@@ -46,7 +46,7 @@
 
 #ifndef __ROM_MAP_H__
 #define __ROM_MAP_H__
-//#include "rom_patch.h"
+#include "rom_patch.h"
 
 //*****************************************************************************
 //

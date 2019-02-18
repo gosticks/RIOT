@@ -44,15 +44,13 @@
 //
 //*****************************************************************************
 
-
-#include "inc/hw_ints.h"
-#include "inc/hw_types.h"
-#include "inc/hw_memmap.h"
-#include "inc/hw_mcspi.h"
-#include "inc/hw_apps_config.h"
+#include "vendor/hw_ints.h"
+#include "vendor/hw_types.h"
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_mcspi.h"
+#include "vendor/hw_apps_config.h"
 #include "interrupt.h"
 #include "spi.h"
-
 
 //*****************************************************************************
 //
@@ -60,10 +58,10 @@
 //
 //*****************************************************************************
 static const unsigned long g_ppulSPIIntMap[][3] =
-{
-    { SSPI_BASE, INT_SSPI }, // Shared SPI
-    { GSPI_BASE, INT_GSPI }, // Generic SPI
-    { LSPI_BASE, INT_LSPI }, // LINK SPI
+    {
+        {SSPI_BASE, INT_SSPI}, // Shared SPI
+        {GSPI_BASE, INT_GSPI}, // Generic SPI
+        {LSPI_BASE, INT_LSPI}, // LINK SPI
 };
 
 //*****************************************************************************
@@ -71,11 +69,11 @@ static const unsigned long g_ppulSPIIntMap[][3] =
 // A mapping of SPI base address to DMA done interrupt mask bit(s).
 //
 //*****************************************************************************
-static const unsigned long g_ulSPIDmaMaskMap[][2]=
-{
-  {SSPI_BASE,APPS_CONFIG_DMA_DONE_INT_MASK_SHSPI_WR_DMA_DONE_INT_MASK},
-  {LSPI_BASE,APPS_CONFIG_DMA_DONE_INT_MASK_HOSTSPI_WR_DMA_DONE_INT_MASK},
-  {GSPI_BASE,APPS_CONFIG_DMA_DONE_INT_MASK_APPS_SPI_WR_DMA_DONE_INT_MASK},
+static const unsigned long g_ulSPIDmaMaskMap[][2] =
+    {
+        {SSPI_BASE, APPS_CONFIG_DMA_DONE_INT_MASK_SHSPI_WR_DMA_DONE_INT_MASK},
+        {LSPI_BASE, APPS_CONFIG_DMA_DONE_INT_MASK_HOSTSPI_WR_DMA_DONE_INT_MASK},
+        {GSPI_BASE, APPS_CONFIG_DMA_DONE_INT_MASK_APPS_SPI_WR_DMA_DONE_INT_MASK},
 };
 
 //*****************************************************************************
@@ -96,8 +94,8 @@ static const unsigned long g_ulSPIDmaMaskMap[][2]=
 //
 //*****************************************************************************
 static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
-                   unsigned char *ucDin, unsigned long ulCount,
-                   unsigned long ulFlags)
+                         unsigned char *ucDin, unsigned long ulCount,
+                         unsigned long ulFlags)
 {
   unsigned long ulReadReg;
   unsigned long ulWriteReg;
@@ -111,12 +109,12 @@ static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
   // Initialize the variables
   //
   ulOutIncr = 1;
-  ulInIncr  = 1;
+  ulInIncr = 1;
 
   //
   // Check if output buffer pointer is 0
   //
-  if(ucDout == 0)
+  if (ucDout == 0)
   {
     ulOutIncr = 0;
     ulTxDummy = 0xFFFFFFFF;
@@ -126,7 +124,7 @@ static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
   //
   // Check if input buffer pointer is 0
   //
-  if(ucDin == 0)
+  if (ucDin == 0)
   {
     ulInIncr = 0;
     ucDin = (unsigned char *)&ulRxDummy;
@@ -135,24 +133,24 @@ static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
   //
   // Load the register addresses.
   //
-  ulReadReg  = (ulBase + MCSPI_O_RX0);
+  ulReadReg = (ulBase + MCSPI_O_RX0);
   ulWriteReg = (ulBase + MCSPI_O_TX0);
-  ulStatReg  = (ulBase + MCSPI_O_CH0STAT);
+  ulStatReg = (ulBase + MCSPI_O_CH0STAT);
 
   //
   // Enable CS based on Flag
   //
-  if( ulFlags & SPI_CS_ENABLE)
+  if (ulFlags & SPI_CS_ENABLE)
   {
-    HWREG( ulBase + MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
+    HWREG(ulBase + MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
   }
 
-  while(ulCount)
+  while (ulCount)
   {
     //
     // Wait for space in output register/FIFO.
     //
-    while( !(HWREG(ulStatReg) & MCSPI_CH0STAT_TXS) )
+    while (!(HWREG(ulStatReg) & MCSPI_CH0STAT_TXS))
     {
     }
 
@@ -164,7 +162,7 @@ static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
     //
     // Wait for data in input register/FIFO.
     //
-    while( !( HWREG(ulStatReg) & MCSPI_CH0STAT_RXS) )
+    while (!(HWREG(ulStatReg) & MCSPI_CH0STAT_RXS))
     {
     }
 
@@ -177,7 +175,7 @@ static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
     // Increment pointers.
     //
     ucDout = ucDout + ulOutIncr;
-    ucDin  = ucDin  + ulInIncr;
+    ucDin = ucDin + ulInIncr;
 
     //
     // Decrement the count.
@@ -188,9 +186,9 @@ static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
   //
   // Disable CS based on Flag
   //
-  if( ulFlags & SPI_CS_DISABLE)
+  if (ulFlags & SPI_CS_DISABLE)
   {
-    HWREG( ulBase + MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
+    HWREG(ulBase + MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
   }
 
   return 0;
@@ -216,8 +214,8 @@ static long SPITransfer8(unsigned long ulBase, unsigned char *ucDout,
 //
 //*****************************************************************************
 static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
-                   unsigned short *usDin, unsigned long ulCount,
-                   unsigned long ulFlags)
+                          unsigned short *usDin, unsigned long ulCount,
+                          unsigned long ulFlags)
 {
   unsigned long ulReadReg;
   unsigned long ulWriteReg;
@@ -231,12 +229,12 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
   // Initialize the variables.
   //
   ulOutIncr = 1;
-  ulInIncr  = 1;
+  ulInIncr = 1;
 
   //
   // Check if count is multiple of half-word
   //
-  if(ulCount%2)
+  if (ulCount % 2)
   {
     return -1;
   }
@@ -244,12 +242,12 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
   //
   // Compute number of half words.
   //
-  ulCount = ulCount/2;
+  ulCount = ulCount / 2;
 
   //
   // Check if output buffer pointer is 0
   //
-  if(usDout == 0)
+  if (usDout == 0)
   {
     ulOutIncr = 0;
     ulTxDummy = 0xFFFFFFFF;
@@ -259,7 +257,7 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
   //
   // Check if input buffer pointer is 0
   //
-  if(usDin == 0)
+  if (usDin == 0)
   {
     ulInIncr = 0;
     usDin = (unsigned short *)&ulRxDummy;
@@ -268,24 +266,24 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
   //
   // Load the register addresses.
   //
-  ulReadReg  = (ulBase + MCSPI_O_RX0);
+  ulReadReg = (ulBase + MCSPI_O_RX0);
   ulWriteReg = (ulBase + MCSPI_O_TX0);
-  ulStatReg  = (ulBase + MCSPI_O_CH0STAT);
+  ulStatReg = (ulBase + MCSPI_O_CH0STAT);
 
   //
   // Enable CS based on Flag
   //
-  if( ulFlags & SPI_CS_ENABLE)
+  if (ulFlags & SPI_CS_ENABLE)
   {
-    HWREG( ulBase + MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
+    HWREG(ulBase + MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
   }
 
-  while(ulCount)
+  while (ulCount)
   {
     //
     // Wait for space in output register/FIFO.
     //
-    while( !(HWREG(ulStatReg) & MCSPI_CH0STAT_TXS) )
+    while (!(HWREG(ulStatReg) & MCSPI_CH0STAT_TXS))
     {
     }
 
@@ -297,7 +295,7 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
     //
     // Wait for data in input register/FIFO.
     //
-    while( !( HWREG(ulStatReg) & MCSPI_CH0STAT_RXS) )
+    while (!(HWREG(ulStatReg) & MCSPI_CH0STAT_RXS))
     {
     }
 
@@ -310,7 +308,7 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
     // Increment pointers.
     //
     usDout = usDout + ulOutIncr;
-    usDin  = usDin  + ulInIncr;
+    usDin = usDin + ulInIncr;
 
     //
     // Decrement the count.
@@ -321,9 +319,9 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
   //
   // Disable CS based on Flag
   //
-  if( ulFlags & SPI_CS_DISABLE)
+  if (ulFlags & SPI_CS_DISABLE)
   {
-    HWREG( ulBase + MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
+    HWREG(ulBase + MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
   }
 
   return 0;
@@ -348,8 +346,8 @@ static long SPITransfer16(unsigned long ulBase, unsigned short *usDout,
 //
 //*****************************************************************************
 static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
-                   unsigned long *ulDin, unsigned long ulCount,
-                   unsigned long ulFlags)
+                          unsigned long *ulDin, unsigned long ulCount,
+                          unsigned long ulFlags)
 {
   unsigned long ulReadReg;
   unsigned long ulWriteReg;
@@ -363,12 +361,12 @@ static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
   // Initialize the variables.
   //
   ulOutIncr = 1;
-  ulInIncr  = 1;
+  ulInIncr = 1;
 
   //
   // Check if count is multiple of word
   //
-  if(ulCount%4)
+  if (ulCount % 4)
   {
     return -1;
   }
@@ -376,12 +374,12 @@ static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
   //
   // Compute the number of words to be transferd
   //
-  ulCount = ulCount/4;
+  ulCount = ulCount / 4;
 
   //
   // Check if output buffer pointer is 0
   //
-  if(ulDout == 0)
+  if (ulDout == 0)
   {
     ulOutIncr = 0;
     ulTxDummy = 0xFFFFFFFF;
@@ -391,34 +389,33 @@ static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
   //
   // Check if input buffer pointer is 0
   //
-  if(ulDin == 0)
+  if (ulDin == 0)
   {
     ulInIncr = 0;
     ulDin = &ulRxDummy;
   }
 
-
   //
   // Load the register addresses.
   //
-  ulReadReg  = (ulBase + MCSPI_O_RX0);
+  ulReadReg = (ulBase + MCSPI_O_RX0);
   ulWriteReg = (ulBase + MCSPI_O_TX0);
-  ulStatReg  = (ulBase + MCSPI_O_CH0STAT);
+  ulStatReg = (ulBase + MCSPI_O_CH0STAT);
 
   //
   // Enable CS based on Flag
   //
-  if( ulFlags & SPI_CS_ENABLE)
+  if (ulFlags & SPI_CS_ENABLE)
   {
-    HWREG( ulBase + MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
+    HWREG(ulBase + MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
   }
 
-  while(ulCount)
+  while (ulCount)
   {
     //
     // Wait for space in output register/FIFO.
     //
-    while( !(HWREG(ulStatReg) & MCSPI_CH0STAT_TXS) )
+    while (!(HWREG(ulStatReg) & MCSPI_CH0STAT_TXS))
     {
     }
 
@@ -430,7 +427,7 @@ static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
     //
     // Wait for data in input register/FIFO.
     //
-    while( !( HWREG(ulStatReg) & MCSPI_CH0STAT_RXS) )
+    while (!(HWREG(ulStatReg) & MCSPI_CH0STAT_RXS))
     {
     }
 
@@ -443,7 +440,7 @@ static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
     // Increment pointers.
     //
     ulDout = ulDout + ulOutIncr;
-    ulDin  = ulDin  + ulInIncr;
+    ulDin = ulDin + ulInIncr;
 
     //
     // Decrement the count.
@@ -454,9 +451,9 @@ static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
   //
   // Disable CS based on Flag
   //
-  if( ulFlags & SPI_CS_DISABLE)
+  if (ulFlags & SPI_CS_DISABLE)
   {
-    HWREG( ulBase + MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
+    HWREG(ulBase + MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
   }
 
   return 0;
@@ -477,31 +474,32 @@ static long SPITransfer32(unsigned long ulBase, unsigned long *ulDout,
 static long
 SPIIntNumberGet(unsigned long ulBase)
 {
-    unsigned long ulIdx;
+  unsigned long ulIdx;
 
+  //
+  // Loop through the table that maps SPI base addresses to interrupt
+  // numbers.
+  //
+  for (ulIdx = 0; ulIdx < (sizeof(g_ppulSPIIntMap) /
+                           sizeof(g_ppulSPIIntMap[0]));
+       ulIdx++)
+  {
     //
-    // Loop through the table that maps SPI base addresses to interrupt
-    // numbers.
+    // See if this base address matches.
     //
-    for(ulIdx = 0; ulIdx < (sizeof(g_ppulSPIIntMap) /
-                            sizeof(g_ppulSPIIntMap[0])); ulIdx++)
+    if (g_ppulSPIIntMap[ulIdx][0] == ulBase)
     {
-        //
-        // See if this base address matches.
-        //
-        if(g_ppulSPIIntMap[ulIdx][0] == ulBase)
-        {
-            //
-            // Return the corresponding interrupt number.
-            //
-            return(g_ppulSPIIntMap[ulIdx][1]);
-        }
+      //
+      // Return the corresponding interrupt number.
+      //
+      return (g_ppulSPIIntMap[ulIdx][1]);
     }
+  }
 
-    //
-    // The base address could not be found, so return an error.
-    //
-    return(-1);
+  //
+  // The base address could not be found, so return an error.
+  //
+  return (-1);
 }
 
 //*****************************************************************************
@@ -519,31 +517,32 @@ SPIIntNumberGet(unsigned long ulBase)
 static long
 SPIDmaMaskGet(unsigned long ulBase)
 {
-    unsigned long ulIdx;
+  unsigned long ulIdx;
 
+  //
+  // Loop through the table that maps SPI base addresses to interrupt
+  // numbers.
+  //
+  for (ulIdx = 0; ulIdx < (sizeof(g_ulSPIDmaMaskMap) /
+                           sizeof(g_ulSPIDmaMaskMap[0]));
+       ulIdx++)
+  {
     //
-    // Loop through the table that maps SPI base addresses to interrupt
-    // numbers.
+    // See if this base address matches.
     //
-    for(ulIdx = 0; ulIdx < (sizeof(g_ulSPIDmaMaskMap) /
-                            sizeof(g_ulSPIDmaMaskMap[0])); ulIdx++)
+    if (g_ulSPIDmaMaskMap[ulIdx][0] == ulBase)
     {
-        //
-        // See if this base address matches.
-        //
-        if(g_ulSPIDmaMaskMap[ulIdx][0] == ulBase)
-        {
-            //
-            // Return the corresponding interrupt number.
-            //
-            return(g_ulSPIDmaMaskMap[ulIdx][1]);
-        }
+      //
+      // Return the corresponding interrupt number.
+      //
+      return (g_ulSPIDmaMaskMap[ulIdx][1]);
     }
+  }
 
-    //
-    // The base address could not be found, so return an error.
-    //
-    return(-1);
+  //
+  // The base address could not be found, so return an error.
+  //
+  return (-1);
 }
 
 //*****************************************************************************
@@ -558,8 +557,7 @@ SPIDmaMaskGet(unsigned long ulBase)
 //!
 //
 //*****************************************************************************
-void
-SPIEnable(unsigned long ulBase)
+void SPIEnable(unsigned long ulBase)
 {
   //
   // Set Channel Enable Bit
@@ -579,15 +577,13 @@ SPIEnable(unsigned long ulBase)
 //!
 //
 //*****************************************************************************
-void
-SPIDisable(unsigned long ulBase)
+void SPIDisable(unsigned long ulBase)
 {
   //
   // Reset Channel Enable Bit
   //
   HWREG(ulBase + MCSPI_O_CH0CTRL) &= ~MCSPI_CH0CTRL_EN;
 }
-
 
 //*****************************************************************************
 //
@@ -607,8 +603,7 @@ SPIDisable(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIDmaEnable(unsigned long ulBase, unsigned long ulFlags)
+void SPIDmaEnable(unsigned long ulBase, unsigned long ulFlags)
 {
   //
   // Enable DMA based on ulFlags
@@ -634,13 +629,12 @@ SPIDmaEnable(unsigned long ulBase, unsigned long ulFlags)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIDmaDisable(unsigned long ulBase, unsigned long ulFlags)
+void SPIDmaDisable(unsigned long ulBase, unsigned long ulFlags)
 {
   //
   // Disable DMA based on ulFlags
   //
-  HWREG(ulBase + MCSPI_O_CH0CONF) &= ~ulFlags;
+  HWREG(ulBase + MCSPI_O_CH0CONF) &= ulFlags;
 }
 
 //*****************************************************************************
@@ -654,8 +648,7 @@ SPIDmaDisable(unsigned long ulBase, unsigned long ulFlags)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIReset(unsigned long ulBase)
+void SPIReset(unsigned long ulBase)
 {
 
   //
@@ -666,7 +659,7 @@ SPIReset(unsigned long ulBase)
   //
   // wait until reset is done
   //
-  while(!(HWREG(ulBase + MCSPI_O_SYSSTATUS)& MCSPI_SYSSTATUS_RESETDONE))
+  while (!(HWREG(ulBase + MCSPI_O_SYSSTATUS) & MCSPI_SYSSTATUS_RESETDONE))
   {
   }
 }
@@ -738,10 +731,9 @@ SPIReset(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIConfigSetExpClk(unsigned long ulBase,unsigned long ulSPIClk,
-            unsigned long ulBitRate, unsigned long ulMode,
-            unsigned long ulSubMode, unsigned long ulConfig)
+void SPIConfigSetExpClk(unsigned long ulBase, unsigned long ulSPIClk,
+                        unsigned long ulBitRate, unsigned long ulMode,
+                        unsigned long ulSubMode, unsigned long ulConfig)
 {
 
   unsigned long ulRegData;
@@ -772,7 +764,7 @@ SPIConfigSetExpClk(unsigned long ulBase,unsigned long ulSPIClk,
   //
   // Set IS, DPE0, DPE1 based on master or slave mode
   //
-  if(ulMode == SPI_MODE_MASTER)
+  if (ulMode == SPI_MODE_MASTER)
   {
     ulRegData = 0x1 << 16;
   }
@@ -787,15 +779,15 @@ SPIConfigSetExpClk(unsigned long ulBase,unsigned long ulSPIClk,
   //
   ulRegData = (ulRegData & ~(MCSPI_CH0CONF_WL_M |
                              MCSPI_CH0CONF_EPOL |
-                             MCSPI_CH0CONF_POL  |
-                             MCSPI_CH0CONF_PHA  |
-                             MCSPI_CH0CONF_TURBO ) |
+                             MCSPI_CH0CONF_POL |
+                             MCSPI_CH0CONF_PHA |
+                             MCSPI_CH0CONF_TURBO) |
                MCSPI_CH0CONF_CLKG);
 
   //
   // Get the divider value
   //
-  ulDivider = ((ulSPIClk/ulBitRate) - 1);
+  ulDivider = ((ulSPIClk / ulBitRate) - 1);
 
   //
   // The least significant four bits of the divider is used fo configure
@@ -809,14 +801,14 @@ SPIConfigSetExpClk(unsigned long ulBase,unsigned long ulSPIClk,
   // Set the protocol, CS polarity, word length
   // and turbo mode
   //
-  ulRegData = ((ulRegData  |
-                ulSubMode) | (ulConfig & 0x0008FFFF));
+  ulRegData = ((ulRegData |
+                ulSubMode) |
+               (ulConfig & 0x0008FFFF));
 
   //
   // Write back the CONF register
   //
   HWREG(ulBase + MCSPI_O_CH0CONF) = ulRegData;
-
 }
 
 //*****************************************************************************
@@ -832,8 +824,7 @@ SPIConfigSetExpClk(unsigned long ulBase,unsigned long ulSPIClk,
 //! \return Returns the number of elements read from the receive FIFO.
 //
 //*****************************************************************************
-long
-SPIDataGetNonBlocking(unsigned long ulBase, unsigned long *pulData)
+long SPIDataGetNonBlocking(unsigned long ulBase, unsigned long *pulData)
 {
   unsigned long ulRegVal;
 
@@ -845,13 +836,13 @@ SPIDataGetNonBlocking(unsigned long ulBase, unsigned long *pulData)
   //
   // Check is data is available
   //
-  if(ulRegVal & MCSPI_CH0STAT_RXS)
+  if (ulRegVal & MCSPI_CH0STAT_RXS)
   {
     *pulData = HWREG(ulBase + MCSPI_O_RX0);
-    return(1);
+    return (1);
   }
 
-   return(0);
+  return (0);
 }
 
 //*****************************************************************************
@@ -869,13 +860,12 @@ SPIDataGetNonBlocking(unsigned long ulBase, unsigned long *pulData)
 //! \e unsigned long.
 //
 //*****************************************************************************
-void
-SPIDataGet(unsigned long ulBase, unsigned long *pulData)
+void SPIDataGet(unsigned long ulBase, unsigned long *pulData)
 {
   //
   // Wait for Rx data
   //
-  while(!(HWREG(ulBase + MCSPI_O_CH0STAT) & MCSPI_CH0STAT_RXS))
+  while (!(HWREG(ulBase + MCSPI_O_CH0STAT) & MCSPI_CH0STAT_RXS))
   {
   }
 
@@ -898,27 +888,26 @@ SPIDataGet(unsigned long ulBase, unsigned long *pulData)
 //! \return  Returns the number of elements written to the transmit FIFO.
 //!
 //*****************************************************************************
-long
-SPIDataPutNonBlocking(unsigned long ulBase, unsigned long ulData)
+long SPIDataPutNonBlocking(unsigned long ulBase, unsigned long ulData)
 {
-    unsigned long ulRegVal;
+  unsigned long ulRegVal;
 
-    //
-    // Read status register
-    //
-    ulRegVal = HWREG(ulBase + MCSPI_O_CH0STAT);
+  //
+  // Read status register
+  //
+  ulRegVal = HWREG(ulBase + MCSPI_O_CH0STAT);
 
-    //
-    // Write value into Tx register/FIFO
-    // if space is available
-    //
-    if(ulRegVal & MCSPI_CH0STAT_TXS)
-    {
-      HWREG(ulBase + MCSPI_O_TX0) = ulData;
-      return(1);
-    }
+  //
+  // Write value into Tx register/FIFO
+  // if space is available
+  //
+  if (ulRegVal & MCSPI_CH0STAT_TXS)
+  {
+    HWREG(ulBase + MCSPI_O_TX0) = ulData;
+    return (1);
+  }
 
-    return(0);
+  return (0);
 }
 
 //*****************************************************************************
@@ -934,13 +923,12 @@ SPIDataPutNonBlocking(unsigned long ulBase, unsigned long ulData)
 //! \return None
 //!
 //*****************************************************************************
-void
-SPIDataPut(unsigned long ulBase, unsigned long ulData)
+void SPIDataPut(unsigned long ulBase, unsigned long ulData)
 {
   //
   // Wait for space in FIFO
   //
-  while(!(HWREG(ulBase + MCSPI_O_CH0STAT)&MCSPI_CH0STAT_TXS))
+  while (!(HWREG(ulBase + MCSPI_O_CH0STAT) & MCSPI_CH0STAT_TXS))
   {
   }
 
@@ -967,8 +955,7 @@ SPIDataPut(unsigned long ulBase, unsigned long ulData)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIFIFOEnable(unsigned long ulBase, unsigned long ulFlags)
+void SPIFIFOEnable(unsigned long ulBase, unsigned long ulFlags)
 {
   //
   // Set FIFO enable bits.
@@ -993,8 +980,7 @@ SPIFIFOEnable(unsigned long ulBase, unsigned long ulFlags)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIFIFODisable(unsigned long ulBase, unsigned long ulFlags)
+void SPIFIFODisable(unsigned long ulBase, unsigned long ulFlags)
 {
   //
   // Reset FIFO Enable bits.
@@ -1017,7 +1003,7 @@ SPIFIFODisable(unsigned long ulBase, unsigned long ulFlags)
 //
 //*****************************************************************************
 void SPIFIFOLevelSet(unsigned long ulBase, unsigned long ulTxLevel,
-                   unsigned long ulRxLevel)
+                     unsigned long ulRxLevel)
 {
   unsigned long ulRegVal;
 
@@ -1029,13 +1015,12 @@ void SPIFIFOLevelSet(unsigned long ulBase, unsigned long ulTxLevel,
   //
   // Mask and set new FIFO thresholds.
   //
-  ulRegVal = ((ulRegVal & 0xFFFF0000) | (((ulRxLevel-1) << 8) | (ulTxLevel-1)));
+  ulRegVal = ((ulRegVal & 0xFFFF0000) | (((ulRxLevel - 1) << 8) | (ulTxLevel - 1)));
 
   //
   // Set the transmit and receive FIFO thresholds.
   //
   HWREG(ulBase + MCSPI_O_XFERLEVEL) = ulRegVal;
-
 }
 
 //*****************************************************************************
@@ -1052,9 +1037,8 @@ void SPIFIFOLevelSet(unsigned long ulBase, unsigned long ulTxLevel,
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIFIFOLevelGet(unsigned long ulBase, unsigned long *pulTxLevel,
-                 unsigned long *pulRxLevel)
+void SPIFIFOLevelGet(unsigned long ulBase, unsigned long *pulTxLevel,
+                     unsigned long *pulRxLevel)
 {
   unsigned long ulRegVal;
 
@@ -1066,7 +1050,6 @@ SPIFIFOLevelGet(unsigned long ulBase, unsigned long *pulTxLevel,
   *pulTxLevel = (ulRegVal & 0xFF);
 
   *pulRxLevel = ((ulRegVal >> 8) & 0xFF);
-
 }
 
 //*****************************************************************************
@@ -1082,8 +1065,7 @@ SPIFIFOLevelGet(unsigned long ulBase, unsigned long *pulTxLevel,
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIWordCountSet(unsigned long ulBase, unsigned long ulWordCount)
+void SPIWordCountSet(unsigned long ulBase, unsigned long ulWordCount)
 {
   unsigned long ulRegVal;
 
@@ -1095,8 +1077,8 @@ SPIWordCountSet(unsigned long ulBase, unsigned long ulWordCount)
   //
   // Mask and set the word count
   //
-  HWREG(ulBase + MCSPI_O_XFERLEVEL) = ((ulRegVal & 0x0000FFFF)|
-                                      (ulWordCount & 0xFFFF) << 16);
+  HWREG(ulBase + MCSPI_O_XFERLEVEL) = ((ulRegVal & 0x0000FFFF) |
+                                       (ulWordCount & 0xFFFF) << 16);
 }
 
 //*****************************************************************************
@@ -1118,25 +1100,24 @@ SPIWordCountSet(unsigned long ulBase, unsigned long ulWordCount)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIIntRegister(unsigned long ulBase, void(*pfnHandler)(void))
+void SPIIntRegister(unsigned long ulBase, void (*pfnHandler)(void))
 {
-    unsigned long ulInt;
+  unsigned long ulInt;
 
-    //
-    // Determine the interrupt number based on the SPI module
-    //
-    ulInt = SPIIntNumberGet(ulBase);
+  //
+  // Determine the interrupt number based on the SPI module
+  //
+  ulInt = SPIIntNumberGet(ulBase);
 
-    //
-    // Register the interrupt handler.
-    //
-    IntRegister(ulInt, pfnHandler);
+  //
+  // Register the interrupt handler.
+  //
+  IntRegister(ulInt, pfnHandler);
 
-    //
-    // Enable the SPI interrupt.
-    //
-    IntEnable(ulInt);
+  //
+  // Enable the SPI interrupt.
+  //
+  IntEnable(ulInt);
 }
 
 //*****************************************************************************
@@ -1156,25 +1137,24 @@ SPIIntRegister(unsigned long ulBase, void(*pfnHandler)(void))
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIIntUnregister(unsigned long ulBase)
+void SPIIntUnregister(unsigned long ulBase)
 {
-    unsigned long ulInt;
+  unsigned long ulInt;
 
-    //
-    // Determine the interrupt number based on the SPI module
-    //
-    ulInt = SPIIntNumberGet(ulBase);
+  //
+  // Determine the interrupt number based on the SPI module
+  //
+  ulInt = SPIIntNumberGet(ulBase);
 
-    //
-    // Disable the interrupt.
-    //
-    IntDisable(ulInt);
+  //
+  // Disable the interrupt.
+  //
+  IntDisable(ulInt);
 
-    //
-    // Unregister the interrupt handler.
-    //
-    IntUnregister(ulInt);
+  //
+  // Unregister the interrupt handler.
+  //
+  IntUnregister(ulInt);
 }
 
 //*****************************************************************************
@@ -1201,27 +1181,26 @@ SPIIntUnregister(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIIntEnable(unsigned long ulBase, unsigned long ulIntFlags)
+void SPIIntEnable(unsigned long ulBase, unsigned long ulIntFlags)
 {
   unsigned long ulDmaMsk;
 
   //
   // Enable DMA  Tx Interrupt
   //
-  if(ulIntFlags & SPI_INT_DMATX)
+  if (ulIntFlags & SPI_INT_DMATX)
   {
-      ulDmaMsk = SPIDmaMaskGet(ulBase);
-      HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_CLR) = ulDmaMsk;
+    ulDmaMsk = SPIDmaMaskGet(ulBase);
+    HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_CLR) = ulDmaMsk;
   }
 
   //
   // Enable DMA  Rx Interrupt
   //
-  if(ulIntFlags & SPI_INT_DMARX)
+  if (ulIntFlags & SPI_INT_DMARX)
   {
-      ulDmaMsk = (SPIDmaMaskGet(ulBase) >> 1);
-      HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_CLR) = ulDmaMsk;
+    ulDmaMsk = (SPIDmaMaskGet(ulBase) >> 1);
+    HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_CLR) = ulDmaMsk;
   }
 
   //
@@ -1229,7 +1208,6 @@ SPIIntEnable(unsigned long ulBase, unsigned long ulIntFlags)
   //
   HWREG(ulBase + MCSPI_O_IRQENABLE) |= (ulIntFlags & 0x0003000F);
 }
-
 
 //*****************************************************************************
 //
@@ -1248,27 +1226,26 @@ SPIIntEnable(unsigned long ulBase, unsigned long ulIntFlags)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIIntDisable(unsigned long ulBase, unsigned long ulIntFlags)
+void SPIIntDisable(unsigned long ulBase, unsigned long ulIntFlags)
 {
   unsigned long ulDmaMsk;
 
   //
   // Disable DMA  Tx Interrupt
   //
-  if(ulIntFlags & SPI_INT_DMATX)
+  if (ulIntFlags & SPI_INT_DMATX)
   {
-      ulDmaMsk = SPIDmaMaskGet(ulBase);
-      HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_SET) = ulDmaMsk;
+    ulDmaMsk = SPIDmaMaskGet(ulBase);
+    HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_SET) = ulDmaMsk;
   }
 
   //
   // Disable DMA  Tx Interrupt
   //
-  if(ulIntFlags & SPI_INT_DMARX)
+  if (ulIntFlags & SPI_INT_DMARX)
   {
-      ulDmaMsk = (SPIDmaMaskGet(ulBase) >> 1);
-      HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_SET) = ulDmaMsk;
+    ulDmaMsk = (SPIDmaMaskGet(ulBase) >> 1);
+    HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_MASK_SET) = ulDmaMsk;
   }
 
   //
@@ -1305,9 +1282,9 @@ SPIIntStatus(unsigned long ulBase, tBoolean bMasked)
   //
   ulIntFlag = HWREG(ulBase + MCSPI_O_IRQSTATUS) & 0x0003000F;
 
-  if(bMasked)
+  if (bMasked)
   {
-     ulIntFlag &= HWREG(ulBase + MCSPI_O_IRQENABLE);
+    ulIntFlag &= HWREG(ulBase + MCSPI_O_IRQENABLE);
   }
 
   //
@@ -1318,7 +1295,7 @@ SPIIntStatus(unsigned long ulBase, tBoolean bMasked)
   //
   // Get the DMA interrupt status
   //
-  if(bMasked)
+  if (bMasked)
   {
     ulIntStat = HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_STS_MASKED);
   }
@@ -1330,23 +1307,23 @@ SPIIntStatus(unsigned long ulBase, tBoolean bMasked)
   //
   // Get SPI Tx DMA done status
   //
-  if(ulIntStat & ulDmaMsk)
+  if (ulIntStat & ulDmaMsk)
   {
-     ulIntFlag |= SPI_INT_DMATX;
+    ulIntFlag |= SPI_INT_DMATX;
   }
 
   //
   // Get SPI Rx DMA done status
   //
-  if(ulIntStat & (ulDmaMsk >> 1))
+  if (ulIntStat & (ulDmaMsk >> 1))
   {
-     ulIntFlag |= SPI_INT_DMARX;
+    ulIntFlag |= SPI_INT_DMARX;
   }
 
   //
   // Return status
   //
-  return(ulIntFlag);
+  return (ulIntFlag);
 }
 
 //*****************************************************************************
@@ -1366,27 +1343,26 @@ SPIIntStatus(unsigned long ulBase, tBoolean bMasked)
 //! \return None.
 //
 //*****************************************************************************
-void
-SPIIntClear(unsigned long ulBase, unsigned long ulIntFlags)
+void SPIIntClear(unsigned long ulBase, unsigned long ulIntFlags)
 {
   unsigned long ulDmaMsk;
 
   //
   // Disable DMA  Tx Interrupt
   //
-  if(ulIntFlags & SPI_INT_DMATX)
+  if (ulIntFlags & SPI_INT_DMATX)
   {
-      ulDmaMsk = SPIDmaMaskGet(ulBase);
-      HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_ACK) = ulDmaMsk;
+    ulDmaMsk = SPIDmaMaskGet(ulBase);
+    HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_ACK) = ulDmaMsk;
   }
 
   //
   // Disable DMA  Tx Interrupt
   //
-  if(ulIntFlags & SPI_INT_DMARX)
+  if (ulIntFlags & SPI_INT_DMARX)
   {
-      ulDmaMsk = (SPIDmaMaskGet(ulBase) >> 1);
-      HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_ACK) = ulDmaMsk;
+    ulDmaMsk = (SPIDmaMaskGet(ulBase) >> 1);
+    HWREG(APPS_CONFIG_BASE + APPS_CONFIG_O_DMA_DONE_INT_ACK) = ulDmaMsk;
   }
 
   //
@@ -1413,7 +1389,7 @@ void SPICSEnable(unsigned long ulBase)
   //
   // Set Chip Select enable bit.
   //
-  HWREG( ulBase+MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
+  HWREG(ulBase + MCSPI_O_CH0CONF) |= MCSPI_CH0CONF_FORCE;
 }
 
 //*****************************************************************************
@@ -1434,7 +1410,7 @@ void SPICSDisable(unsigned long ulBase)
   //
   // Reset Chip Select enable bit.
   //
-  HWREG( ulBase+MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
+  HWREG(ulBase + MCSPI_O_CH0CONF) &= ~MCSPI_CH0CONF_FORCE;
 }
 
 //*****************************************************************************
@@ -1468,8 +1444,8 @@ void SPICSDisable(unsigned long ulBase)
 //
 //*****************************************************************************
 long SPITransfer(unsigned long ulBase, unsigned char *ucDout,
-                   unsigned char *ucDin, unsigned long ulCount,
-                   unsigned long ulFlags)
+                 unsigned char *ucDin, unsigned long ulCount,
+                 unsigned long ulFlags)
 {
   unsigned long ulWordLength;
   long lRet;
@@ -1482,42 +1458,41 @@ long SPITransfer(unsigned long ulBase, unsigned char *ucDout,
   //
   // Check for word length.
   //
-  if( !((ulWordLength == SPI_WL_8) || (ulWordLength == SPI_WL_16) ||
-     (ulWordLength == SPI_WL_32)) )
+  if (!((ulWordLength == SPI_WL_8) || (ulWordLength == SPI_WL_16) ||
+        (ulWordLength == SPI_WL_32)))
   {
     return -1;
   }
 
-  if( ulWordLength == SPI_WL_8 )
+  if (ulWordLength == SPI_WL_8)
   {
     //
     // Do byte transfer
     //
-    lRet = SPITransfer8(ulBase,ucDout,ucDin,ulCount,ulFlags);
+    lRet = SPITransfer8(ulBase, ucDout, ucDin, ulCount, ulFlags);
   }
-  else if( ulWordLength == SPI_WL_16 )
+  else if (ulWordLength == SPI_WL_16)
   {
 
     //
     // Do half-word transfer
     //
-    lRet = SPITransfer16(ulBase,(unsigned short *)ucDout,
-                  (unsigned short *)ucDin,ulCount,ulFlags);
+    lRet = SPITransfer16(ulBase, (unsigned short *)ucDout,
+                         (unsigned short *)ucDin, ulCount, ulFlags);
   }
   else
   {
     //
     // Do word transfer
     //
-    lRet = SPITransfer32(ulBase,(unsigned long *)ucDout,
-                  (unsigned long *)ucDin,ulCount,ulFlags);
+    lRet = SPITransfer32(ulBase, (unsigned long *)ucDout,
+                         (unsigned long *)ucDin, ulCount, ulFlags);
   }
 
   //
   // return
   //
   return lRet;
-
 }
 //*****************************************************************************
 //

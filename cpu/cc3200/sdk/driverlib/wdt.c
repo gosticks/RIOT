@@ -44,17 +44,14 @@
 //
 //*****************************************************************************
 
-#include "inc/hw_ints.h"
-#include "inc/hw_memmap.h"
-#include "inc/hw_types.h"
-#include "inc/hw_wdt.h"
+#include "vendor/hw_ints.h"
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_types.h"
+#include "vendor/hw_wdt.h"
 #include "debug.h"
 #include "interrupt.h"
 #include "wdt.h"
 
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
 //*****************************************************************************
 //
 //! Determines if the watchdog timer is enabled.
@@ -78,7 +75,7 @@ WatchdogRunning(unsigned long ulBase)
     //
     // See if the watchdog timer module is enabled, and return.
     //
-    return (HWREG(ulBase + WDT_O_CTL) & WDT_CTL_INTEN);
+    return(HWREG(ulBase + WDT_O_CTL) & WDT_CTL_INTEN);
 }
 
 //*****************************************************************************
@@ -97,7 +94,8 @@ WatchdogRunning(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogEnable(unsigned long ulBase)
+void
+WatchdogEnable(unsigned long ulBase)
 {
     //
     // Check the arguments.
@@ -121,7 +119,8 @@ void WatchdogEnable(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogLock(unsigned long ulBase)
+void
+WatchdogLock(unsigned long ulBase)
 {
     //
     // Check the arguments.
@@ -146,7 +145,8 @@ void WatchdogLock(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogUnlock(unsigned long ulBase)
+void
+WatchdogUnlock(unsigned long ulBase)
 {
     //
     // Check the arguments.
@@ -182,7 +182,7 @@ WatchdogLockState(unsigned long ulBase)
     //
     // Get the lock state.
     //
-    return ((HWREG(ulBase + WDT_O_LOCK) == WDT_LOCK_LOCKED) ? true : false);
+    return((HWREG(ulBase + WDT_O_LOCK) == WDT_LOCK_LOCKED) ? true : false);
 }
 
 //*****************************************************************************
@@ -206,7 +206,8 @@ WatchdogLockState(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogReloadSet(unsigned long ulBase, unsigned long ulLoadVal)
+void
+WatchdogReloadSet(unsigned long ulBase, unsigned long ulLoadVal)
 {
     //
     // Check the arguments.
@@ -244,7 +245,7 @@ WatchdogReloadGet(unsigned long ulBase)
     //
     // Get the load register.
     //
-    return (HWREG(ulBase + WDT_O_LOAD));
+    return(HWREG(ulBase + WDT_O_LOAD));
 }
 
 //*****************************************************************************
@@ -269,7 +270,7 @@ WatchdogValueGet(unsigned long ulBase)
     //
     // Get the current watchdog timer register value.
     //
-    return (HWREG(ulBase + WDT_O_VALUE));
+    return(HWREG(ulBase + WDT_O_VALUE));
 }
 
 //*****************************************************************************
@@ -296,9 +297,9 @@ WatchdogValueGet(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogIntRegister(unsigned long ulBase, void (*pfnHandler)(void))
+void
+WatchdogIntRegister(unsigned long ulBase, void (*pfnHandler)(void))
 {
-    UNUSED(ulBase);
     //
     // Check the arguments.
     //
@@ -333,9 +334,9 @@ void WatchdogIntRegister(unsigned long ulBase, void (*pfnHandler)(void))
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogIntUnregister(unsigned long ulBase)
+void
+WatchdogIntUnregister(unsigned long ulBase)
 {
-    UNUSED(ulBase);
     //
     // Check the arguments.
     //
@@ -379,13 +380,13 @@ WatchdogIntStatus(unsigned long ulBase, tBoolean bMasked)
     // Return either the interrupt status or the raw interrupt status as
     // requested.
     //
-    if (bMasked)
+    if(bMasked)
     {
-        return (HWREG(ulBase + WDT_O_MIS));
+        return(HWREG(ulBase + WDT_O_MIS));
     }
     else
     {
-        return (HWREG(ulBase + WDT_O_RIS));
+        return(HWREG(ulBase + WDT_O_RIS));
     }
 }
 
@@ -410,7 +411,8 @@ WatchdogIntStatus(unsigned long ulBase, tBoolean bMasked)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogIntClear(unsigned long ulBase)
+void
+WatchdogIntClear(unsigned long ulBase)
 {
     //
     // Check the arguments.
@@ -440,7 +442,8 @@ void WatchdogIntClear(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogStallEnable(unsigned long ulBase)
+void
+WatchdogStallEnable(unsigned long ulBase)
 {
     //
     // Check the arguments.
@@ -466,7 +469,8 @@ void WatchdogStallEnable(unsigned long ulBase)
 //! \return None.
 //
 //*****************************************************************************
-void WatchdogStallDisable(unsigned long ulBase)
+void
+WatchdogStallDisable(unsigned long ulBase)
 {
     //
     // Check the arguments.

@@ -1,4 +1,4 @@
-DIRS += simplelink simplelink/source oslib driverlib
+DIRS += driverlib
 
 # When driverlib rom will be supported by TI
 #DIRS += simplelink simplelink/source oslib
@@ -6,4 +6,4 @@ DIRS += simplelink simplelink/source oslib driverlib
 include $(RIOTBASE)/Makefile.base
 
 # TI cc3200-sdk is not compliant with following RIOT constraints
-CFLAGS += -Wno-misleading-indentation -Wno-strict-prototypes -Wno-old-style-definition -Wno-parentheses  -Wno-unused-parameter -Wno-sign-compare
+CFLAGS += -Wno-sign-compare -Wno-misleading-indentation -Wno-strict-prototypes -Wno-unused-parameter -Wno-old-style-definition -Wno-parentheses  -Wno-unused-variable

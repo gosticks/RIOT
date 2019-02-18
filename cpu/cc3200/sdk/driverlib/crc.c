@@ -46,15 +46,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "inc/hw_dthe.h"
-#include "inc/hw_memmap.h"
-#include "inc/hw_types.h"
+#include "vendor/hw_dthe.h"
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_types.h"
 #include "driverlib/crc.h"
 #include "driverlib/debug.h"
-
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
 
 //*****************************************************************************
 //
@@ -175,7 +171,6 @@ void CRCSeedSet(uint32_t ui32Base, uint32_t ui32Seed)
 //*****************************************************************************
 void CRCDataWrite(uint32_t ui32Base, uint32_t ui32Data)
 {
-    UNUSED(ui32Base);
     //
     // Check the arguments.
     //
@@ -204,7 +199,6 @@ void CRCDataWrite(uint32_t ui32Base, uint32_t ui32Data)
 uint32_t
 CRCResultRead(uint32_t ui32Base)
 {
-    UNUSED(ui32Base);
     //
     // Check the arguments.
     //

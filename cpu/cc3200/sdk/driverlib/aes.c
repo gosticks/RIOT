@@ -46,21 +46,18 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "inc/hw_aes.h"
-#include "inc/hw_dthe.h"
-#include "inc/hw_ints.h"
-#include "inc/hw_memmap.h"
-#include "inc/hw_nvic.h"
-#include "inc/hw_types.h"
+#include "vendor/hw_aes.h"
+#include "vendor/hw_dthe.h"
+#include "vendor/hw_ints.h"
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_nvic.h"
+#include "vendor/hw_types.h"
 #include "aes.h"
 #include "debug.h"
 #include "interrupt.h"
 
 #define AES_BLOCK_SIZE_IN_BYTES 16
 
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
 //*****************************************************************************
 //
 //! Configures the AES module.
@@ -1165,7 +1162,6 @@ void AESIntDisable(uint32_t ui32Base, uint32_t ui32IntFlags)
 //*****************************************************************************
 void AESIntClear(uint32_t ui32Base, uint32_t ui32IntFlags)
 {
-    UNUSED(ui32Base);
     //
     // Check the arguments.
     //
@@ -1205,7 +1201,6 @@ void AESIntClear(uint32_t ui32Base, uint32_t ui32IntFlags)
 //*****************************************************************************
 void AESIntRegister(uint32_t ui32Base, void (*pfnHandler)(void))
 {
-    UNUSED(ui32Base);
     //
     // Check the arguments.
     //
@@ -1239,7 +1234,6 @@ void AESIntRegister(uint32_t ui32Base, void (*pfnHandler)(void))
 //*****************************************************************************
 void AESIntUnregister(uint32_t ui32Base)
 {
-    UNUSED(ui32Base);
     //
     // Check the arguments.
     //

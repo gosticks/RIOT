@@ -54,11 +54,11 @@ extern void __error__(char *pcFilename, unsigned long ulLine);
 //
 //*****************************************************************************
 #ifdef DEBUG
-#define ASSERT(expr)                   \
-    if (!(expr))                       \
-    {                                  \
-        __error__(__FILE__, __LINE__); \
-    }
+#define ASSERT(expr)                                       \
+                         if(!(expr))                        \
+                         {                                  \
+                             __error__(__FILE__, __LINE__); \
+                         }                                  \
 
 #else
 #define ASSERT(expr)

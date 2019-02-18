@@ -44,17 +44,13 @@
 //
 //*****************************************************************************
 
-#include "inc/hw_types.h"
-#include "inc/hw_ints.h"
-#include "inc/hw_memmap.h"
-#include "inc/hw_camera.h"
-#include "inc/hw_apps_config.h"
+#include "vendor/hw_types.h"
+#include "vendor/hw_ints.h"
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_camera.h"
+#include "vendor/hw_apps_config.h"
 #include "interrupt.h"
 #include "camera.h"
-
-#ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
 
 //******************************************************************************
 //
@@ -230,7 +226,7 @@ void CameraXClkSet(unsigned long ulBase, unsigned char bXClkFlags)
     break;
 
   case CAM_XCLK_DIV_BYPASS:
-    ulReg |= 0x0000001F;
+    ulReg |= 0x0000000F;
     break;
   }
 
@@ -320,7 +316,6 @@ void CameraThresholdSet(unsigned long ulBase, unsigned long ulThreshold)
 //******************************************************************************
 void CameraIntRegister(unsigned long ulBase, void (*pfnHandler)(void))
 {
-  UNUSED(ulBase);
   //
   // Register the interrupt handler.
   //
@@ -346,7 +341,6 @@ void CameraIntRegister(unsigned long ulBase, void (*pfnHandler)(void))
 //******************************************************************************
 void CameraIntUnregister(unsigned long ulBase)
 {
-  UNUSED(ulBase);
   //
   // Disable the interrupt.
   //
@@ -572,7 +566,6 @@ void CameraCaptureStop(unsigned long ulBase, tBoolean bImmediate)
 void CameraBufferRead(unsigned long ulBase, unsigned long *pBuffer,
                       unsigned char ucSize)
 {
-  UNUSED(ulBase);
   unsigned char *pCamBuff;
   unsigned char i;
 
