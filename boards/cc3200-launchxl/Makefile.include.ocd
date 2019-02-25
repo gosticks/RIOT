@@ -1,0 +1,21 @@
+# Define the cpu used by the CC3200 board:
+export CPU        = cc3200
+# export CPU_MODEL  ?= cc3200
+
+# set default port depending on operating system
+PORT_LINUX ?= /dev/ttyUSB0
+PORT_DARWIN ?= /dev/tty.usbserial-cc3101B 
+# $(firstword $(sort $(wildcard /dev/tty.usbserial-cc3101B*)))
+
+# setup serial terminal
+include $(RIOTMAKE)/tools/serial.inc.mk
+
+# export DEBUG_ADAPTER ?= stlink
+# export STLINK_VERSION ?= 2
+
+# this board uses openocd
+include $(RIOTMAKE)/tools/openocd.inc.mk
+
+# include cortex defaults
+include $(RIOTCPU)/cortexm_common/Makefile.include
+#endif

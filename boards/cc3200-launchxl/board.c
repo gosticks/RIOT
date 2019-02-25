@@ -42,8 +42,6 @@ void led_init(void)
     gpio_clear(LED_RED);
     gpio_clear(LED_GREEN);
     gpio_clear(LED_YELLOW);
-
-    LED_RED_ON;
 }
 
 /**
