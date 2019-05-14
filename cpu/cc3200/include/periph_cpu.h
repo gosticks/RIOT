@@ -5,8 +5,7 @@
 extern "C"
 {
 #endif
-
-    /* nothing to do here, yet */
+#define PROVIDES_PM_OFF
 
 #ifdef __cplusplus
 }
