@@ -2,12 +2,10 @@
 MODULE = cpu
 
 # Add a list of subdirectories, that should also be built:
-DIRS = periph $(RIOTCPU)/cortexm_common
+DIRS += driverlib periph $(RIOTCPU)/cortexm_common
 
-# TODO: remove or split up later
-DIRS += sdk
+CFLAGS += -DTARGET_IS_CC3200
+CFLAGS += -Wno-sign-compare -Wno-misleading-indentation -Wno-strict-prototypes -Wno-unused-parameter -Wno-old-style-definition -Wno-parentheses  -Wno-unused-variable
 
-# (file triggers compiler bug. see #5775)
-SRC_NOLTO += vectors.c
 
 include $(RIOTBASE)/Makefile.base
