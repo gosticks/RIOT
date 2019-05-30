@@ -1,26 +1,16 @@
-/**
- * @addtogroup      cpu_cc3200/cpu_cc3101B
- * @{
+/*
+ * Copyright (C) 2019 Wlad Meixner
  *
- * @file
- * @brief           linker script for cpu_cc3200/cpu_cc3101 MCUs
- *
- * @}
+ * This file is subject to the terms and conditions of the GNU Lesser
+ * General Public License v2.1. See the file LICENSE in the top level
+ * directory for more details.
  */
 
- MEMORY
+/* Memory Space Definitions: */
+MEMORY
 {
-    rom (rx)  : ORIGIN = 0x00080000, LENGTH = 512K
-    ram (w!rx) : ORIGIN = 0x20040000, LENGTH = 192K
+    rom (rx)    : ORIGIN = 0x20004000, LENGTH = 40K
+    ram (w!rx)  : ORIGIN = 0x2000E000, LENGTH = 240K - 40K
 }
-
-/* MCU Specific Section Definitions */
-/* SECTIONS
-{
-    .flashcca :
-    {
-        KEEP(*(.flashcca))
-    } > cca
-} */
 
 INCLUDE cortexm_base.ld

@@ -1,12 +1,16 @@
 export CPU_ARCH = cortex-m4
 
-# export CFLAGS += -DPART_CC3200
-# export CFLAGS += -DSL_PLATFORM_MULTI_THREADED
+# required by the TI driverlib 
+export CFLAGS += -DPART_CC3200
+export CFLAGS += -DSL_PLATFORM_MULTI_THREADED
 
+# include TI driverlib (only temporal till port is ready)
 USEMODULE += cc3200_driverlib
 
-INCLUDES += -I$(RIOTCPU)/$(CPU)/sdk
-INCLUDES += -I$(RIOTCPU)/$(CPU)/sdk/driverlib
+# include periph module
+USEMODULE += periph
 
+INCLUDES += -I$(RIOTCPU)/$(CPU)/
+
+# Include make defaults for cortex M-Family CPUs
 include $(RIOTMAKE)/arch/cortexm.inc.mk
-

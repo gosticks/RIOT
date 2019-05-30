@@ -23,8 +23,8 @@
 #include <stdint.h>
 #include "cpu.h"
 // #include "nwp_conf.h"
-#include "periph/timer.h"
-#include "periph/gpio.h"
+// #include "periph/timer.h"
+// #include "periph/gpio.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -98,11 +98,10 @@ extern "C"
 #define STDIO_RX_BUFSIZE (64U)
     /** @} */
 
-    /**
- * @name Macros for controlling the on-board LEDs.
+/**
+ * @brief   On-board LED configuration and controlling
  * @{
  */
-
 #define LED_RED_ON gpio_set(LED_RED)
 #define LED_RED_OFF gpio_clear(LED_RED)
 #define LED_RED_TOGGLE gpio_toggle(LED_RED)
@@ -121,12 +120,10 @@ extern "C"
 #define LED_TOGGLE LED_RED_TOGGLE
     /** @} */
 
-    /**
- * @brief Initialize board specific hardware, including clock, LEDs and std-IO
+/**
+ * @brief   Initialize board specific hardware
  */
-    void board_init(void);
-
-    void uart_remote(const uint8_t *data, size_t len);
+void board_init(void);
 
 #ifdef __cplusplus
 } /* end extern "C" */

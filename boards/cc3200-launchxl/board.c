@@ -15,46 +15,66 @@
  *
  * @author      Attilio Dona'
  */
-// #include <vendor/hw_ints.h>
-// #include <vendor/hw_memmap.h>
-// #include <vendor/hw_types.h>
+// #include "vendor/hw_ints.h"
+// #include "vendor/hw_memmap.h"
+// #include "vendor/hw_types.h"
 // #include <stdio.h>
 
-// #include "driverlib/prcm.h"
 // #include "driverlib/interrupt.h"
 // #include "driverlib/utils.h"
 
 #include "cpu.h"
 #include "board.h"
+#include "vendor/hw_types.h"
+#include "vendor/hw_memmap.h"
+#include "vendor/hw_gpio.h"
+#include "periph/gpio.h"
+#include "driverlib/pin.h"
+#include "driverlib/rom.h"
+#include "driverlib/rom_map.h"
+#include "driverlib/gpio.h"
+#include "driverlib/utils.h"
+#include "driverlib/prcm.h"
+
 
 // #include "periph/gpio.h"
+extern const void cortex_vector_base;
 
 /**
  * @brief Initialize on-board LEDs
  */
 void led_init(void)
 {
+     //
+    // Enable Peripheral Clocks 
+    //
+    MAP_PRCMPeripheralClkEnable(PRCM_GPIOA1, PRCM_RUN_MODE_CLK);
 
-    gpio_init(LED_RED, GPIO_OUT);
-    gpio_init(LED_GREEN, GPIO_OUT);
-    gpio_init(LED_YELLOW, GPIO_OUT);
+    //
+    // Configure PIN_64 for GPIOOutput
+    //
+    MAP_PinTypeGPIO(PIN_64, PIN_MODE_0, false);
+    MAP_GPIODirModeSet(GPIOA1_BASE, 0x2, GPIO_DIR_MODE_OUT);
 
-    gpio_clear(LED_RED);
-    gpio_clear(LED_GREEN);
-    gpio_clear(LED_YELLOW);
+    //
+    // Configure PIN_01 for GPIOOutput
+    //
+    MAP_PinTypeGPIO(PIN_01, PIN_MODE_0, false);
+    MAP_GPIODirModeSet(GPIOA1_BASE, 0x4, GPIO_DIR_MODE_OUT);
+
+    //
+    // Configure PIN_02 for GPIOOutput
+    //
+    MAP_PinTypeGPIO(PIN_02, PIN_MODE_0, false);
+    MAP_GPIODirModeSet(GPIOA1_BASE, 0x8, GPIO_DIR_MODE_OUT);
 }
+
 
 /**
  * @brief Initialize the board
  */
 void board_init(void)
 {
-
-    MAP_PRCMPeripheralClkEnable(PRCM_GPIOA0, PRCM_RUN_MODE_CLK);
-    MAP_PRCMPeripheralClkEnable(PRCM_GPIOA1, PRCM_RUN_MODE_CLK);
-    MAP_PRCMPeripheralClkEnable(PRCM_GPIOA2, PRCM_RUN_MODE_CLK);
-    MAP_PRCMPeripheralClkEnable(PRCM_GPIOA3, PRCM_RUN_MODE_CLK);
-
     /* initialize the CPU */
     cpu_init();
 

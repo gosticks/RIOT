@@ -1,21 +1,19 @@
 /*
- * Copyright (C) 2015 Attilio Dona'
+ * Copyright (C) 2019 Ludwig Maximilian Universität 
  *
- * This file is subject to the terms and conditions of the GNU Lesser General
- * Public License v2.1. See the file LICENSE in the top level directory for more
- * details.
+ * This file is subject to the terms and conditions of the GNU Lesser
+ * General Public License v2.1. See the file LICENSE in the top level
+ * directory for more details.
  */
 
 /**
- * @ingroup     cpu_cc3200
+ * @ingroup     cc3200
  * @{
  *
  * @file
- * @brief       CPU-ID driver implementation
+ * @brief       CPUID driver implementation
  *
- * The cc3200 provides a 48-bit unique MAC identifier.
- *
- * @author      Attilio Dona'
+ * @author      Wladislaw Meixner <wladislaw.meixner@campus.lmu.de>
  *
  * @}
  */
@@ -24,7 +22,6 @@
 
 #include "cpu.h"
 #include "periph/cpuid.h"
-// #include "nwp_conf.h"
 
 #include "device.h"
 
@@ -55,3 +52,16 @@ void cpuid_get(void *id)
         }
     }
 }
+
+
+// #define CPU_REV_MASK = 0xF
+// #define CPU_PARTNO_MASK = 0xFFF0
+// #define CPU_CON_MASK = 0xF0000
+// #define CPU_VAR_MASK = 0xF00000
+// #define CPU_IMP_MASK = 0xFF000000
+
+
+// void cpuid_get(void *id)
+// {
+//     memcpy(id, CPUID_ADDR, CPUID_LEN);
+// }

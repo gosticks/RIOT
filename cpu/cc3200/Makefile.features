@@ -1,6 +1,8 @@
-# MCU defined features that are provided independent on board definitions
-FEATURES_PROVIDED += periph_cpuid
-# FEATURES_PROVIDED += periph_hwrng
-# FEATURES_PROVIDED += puf_sram
+include $(RIOTCPU)/cortexm_common/Makefile.features
 
--include $(RIOTCPU)/cortexm_common/Makefile.features
+
+# Additional MCU features
+FEATURES_PROVIDED += periph_cpuid
+FEATURES_PROVIDED += periph_hwrng
+FEATURES_PROVIDED += puf_sram
+
