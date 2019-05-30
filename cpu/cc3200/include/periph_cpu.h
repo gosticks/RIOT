@@ -36,7 +36,7 @@ extern "C"
 /** @} */
 
 
-#define CPUID_ADDR (*(cc3200_reg_t*)0xE000ED00)
+#define CPUID_ADDR (0xe000ed00)
 
 /**
  * @brief   Length of the CPU_ID in octets
