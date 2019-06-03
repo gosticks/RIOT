@@ -64,3 +64,4 @@ results/
 
 # macOS specific files
 .DS_STORE
+boards/**/*.log
