@@ -50,23 +50,15 @@ void led_init(void)
     //
     MAP_PRCMPeripheralClkEnable(PRCM_GPIOA1, PRCM_RUN_MODE_CLK);
 
-    //
-    // Configure PIN_64 for GPIOOutput
-    //
-    MAP_PinTypeGPIO(PIN_64, PIN_MODE_0, false);
-    MAP_GPIODirModeSet(GPIOA1_BASE, 0x2, GPIO_DIR_MODE_OUT);
+    // enable leads and clear them
+    gpio_init(LED_RED, GPIO_OUT);
+    gpio_clear(LED_RED);
 
-    //
-    // Configure PIN_01 for GPIOOutput
-    //
-    MAP_PinTypeGPIO(PIN_01, PIN_MODE_0, false);
-    MAP_GPIODirModeSet(GPIOA1_BASE, 0x4, GPIO_DIR_MODE_OUT);
-
-    //
-    // Configure PIN_02 for GPIOOutput
-    //
-    MAP_PinTypeGPIO(PIN_02, PIN_MODE_0, false);
-    MAP_GPIODirModeSet(GPIOA1_BASE, 0x8, GPIO_DIR_MODE_OUT);
+    gpio_init(LED_ORANGE, GPIO_OUT);
+    gpio_clear(LED_ORANGE);
+    
+    gpio_init(LED_GREEN, GPIO_OUT);
+    gpio_clear(LED_GREEN);
 }
 
 
