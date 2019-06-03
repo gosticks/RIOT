@@ -30,14 +30,40 @@ extern "C"
  * @name    Power management configuration
  * @{
  */
-// #define PROVIDES_PM_SET_LOWEST
-// #define PROVIDES_PM_RESTART
+#define PROVIDES_PM_SET_LOWEST
+#define PROVIDES_PM_RESTART
 #define PROVIDES_PM_OFF
 /** @} */
 
 
-#define CPUID_ADDR (0xe000ed00)
+/**
+ * @brief   Define a CPU specific GPIO pin generator macro
+ */
+#define GPIO_PIN(x, y)          ((x << 6) | y)
+#define GPIO_PINS_PER_PORT 8
+#define LED_RED     GPIO_PIN(1, 9)
+#define LED_ORANGE  GPIO_PIN(1, 10)
+#define LED_GREEN   GPIO_PIN(1, 11)
 
+
+// /**
+//  * @name   Override the default GPIO mode settings
+//  * @{
+//  */
+// #define HAVE_GPIO_MODE_T
+// typedef enum {
+//     GPIO_IN         = 0x00000000,     /**< input, no pull */
+//     GPIO_IN_PD      = 0x00000100,     /**< input, pull-down */
+//     GPIO_IN_PU      = 0x00000200,     /**< input, pull-up */
+//     GPIO_IN_ANALOG  = 0x10000000,     /**< input, analog */
+//     GPIO_OUT        = 0x00000001,     /**< output */
+//     GPIO_OD         = 0x00000010,     /**< open drain */
+//     GPIO_OD_PU      = 0x00000110,     /**< open drain pull-up */
+//     GPIO_OD_PD      = 0x00000210      /**< open drain pull-down */
+// } gpio_mode_t;
+// /** @} */
+
+#define CPUID_ADDR (0xe000ed00)
 /**
  * @brief   Length of the CPU_ID in octets
  */
