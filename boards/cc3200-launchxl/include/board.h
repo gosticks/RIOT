@@ -30,22 +30,6 @@
 extern "C"
 {
 #endif
-
-/**
- * red led id
- */
-// #define LED_RED 29
-
-/**
- * green led id
- */
-// #define LED_GREEN 10
-
-/**
- * yellow led id
- */
-// #define LED_YELLOW 9
-
 /**
  * SW3 button id
  */

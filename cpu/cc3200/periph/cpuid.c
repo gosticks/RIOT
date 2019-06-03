@@ -26,13 +26,6 @@
 #include "device.h"
 
 
-// #define CPU_REV_MASK = 0xF
-// #define CPU_PARTNO_MASK = 0xFFF0
-// #define CPU_CON_MASK = 0xF0000
-// #define CPU_VAR_MASK = 0xF00000
-// #define CPU_IMP_MASK = 0xFF000000
-
-
 void cpuid_get(void *id)
 {
     memcpy(id, CPUID_ADDR, CPUID_LEN);
