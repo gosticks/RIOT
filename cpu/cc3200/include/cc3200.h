@@ -11,9 +11,9 @@
  * @{
  *
  * @file
- * @brief           CC2538 MCU interrupt and register definitions
+ * @brief           cc3200 MCU interrupt and register definitions
  *
- * Header file with register and macro declarations for the cc2538 GPIO module
+ * Header file with register and macro declarations for the cc3200 GPIO module
  *
  * @author          Wladislaw Meixner <wladislaw.meixner@campus.lmu.de>
  *

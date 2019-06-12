@@ -27,6 +27,14 @@ extern "C"
 #endif
 
 /**
+ * @name    Define a custom type for GPIO pins
+ * @{
+ */
+#define HAVE_GPIO_T
+typedef uint32_t gpio_t;
+/** @} */
+
+/**
  * @name    Power management configuration
  * @{
  */
@@ -46,6 +54,14 @@ extern "C"
 #define LED_GREEN   GPIO_PIN(1, 11)
 
 
+typedef struct {
+    unsigned long busaddr;            /**< bus address */
+    gpio_t mosi_pin;        /**< pin used for MOSI */
+    gpio_t miso_pin;        /**< pin used for MISO */
+    gpio_t sck_pin;         /**< pin used for SCK */
+    gpio_t cs_pin;          /**< pin used for CS */
+} spi_conf_t;
+
 // /**
 //  * @name   Override the default GPIO mode settings
 //  * @{
@@ -63,7 +79,7 @@ extern "C"
 // } gpio_mode_t;
 // /** @} */
 
-#define CPUID_ADDR (0xe000ed00)
+#define CPUID_ADDR (void *)(0xe000ed00)
 /**
  * @brief   Length of the CPU_ID in octets
  */
