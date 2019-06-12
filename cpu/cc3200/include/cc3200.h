@@ -44,15 +44,15 @@ extern "C"
 {
 #endif
 
-extern const uint32_t port_to_base[];
-extern const uint8_t digital_pin_to_port[];
-extern const uint16_t digital_pin_to_pin_num[];
-extern const uint8_t digital_pin_to_bit_mask[];
+// extern const uint32_t port_to_base[];
+// extern const uint8_t digital_pin_to_port[];
+// extern const uint16_t digital_pin_to_pin_num[];
+// extern const uint8_t digital_pin_to_bit_mask[];
 
-#define digitalPinToPort(P) (digital_pin_to_port[P])
-#define digitalPinToPinNum(P) (digital_pin_to_pin_num[P])
-#define digitalPinToBitMask(P) (digital_pin_to_bit_mask[P])
-#define portBASERegister(P) ((volatile uint32_t *)port_to_base[P])
+// #define digitalPinToPort(P) (digital_pin_to_port[P])
+// #define digitalPinToPinNum(P) (digital_pin_to_pin_num[P])
+// #define digitalPinToBitMask(P) (digital_pin_to_bit_mask[P])
+// #define portBASERegister(P) ((volatile uint32_t *)port_to_base[P])
 
 typedef volatile uint32_t cc3200_reg_t; /**< Least-significant 32 bits of the IEEE address */
 

@@ -10,7 +10,6 @@
 #define CPU_CONF_H
 
 #include "cpu_conf_common.h"
-
 #include "cc3200.h"
 
 #ifdef __cplusplus

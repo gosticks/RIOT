@@ -266,7 +266,6 @@ void uart_write(uart_t uart, const uint8_t *data, size_t len)
     for (size_t i = 0; i < len; i++)
     {
         MAP_UARTCharPut(u, data[i]);
-        ;
     }
 }
 
