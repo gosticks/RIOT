@@ -64,10 +64,10 @@ typedef uint32_t gpio_t;
 
 typedef struct {
   unsigned long busaddr; /**< bus address */
-  gpio_t mosi_pin;       /**< pin used for MOSI */
-  gpio_t miso_pin;       /**< pin used for MISO */
-  gpio_t sck_pin;        /**< pin used for SCK */
-  gpio_t cs_pin;         /**< pin used for CS */
+  gpio_t mosi;           /**< pin used for MOSI */
+  gpio_t miso;           /**< pin used for MISO */
+  gpio_t sck;            /**< pin used for SCK */
+  gpio_t cs;             /**< pin used for CS */
 } spi_conf_t;
 
 // /**
