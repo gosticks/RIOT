@@ -19,16 +19,6 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#define irq_isr_enter()                                                        \
-  int _irq_state = irq_disable();                                              \
-  // irq_interrupt_nesting++;
-
-/** Macro that has to be used at the exit point of an ISR */
-#define irq_isr_exit()                                                         \
-  irq_restore(_irq_state);                                                     \
-  if (sched_context_switch_request)                                            \
-    thread_yield();
-
 static bool wifiModuleBooted = false;
 
 // wifi module register memory map
@@ -102,7 +92,6 @@ void powerOnWifi(void) {
  *
  */
 void wifiRxHandler(void *value) {
-  irq_isr_enter();
   if (value != NULL) {
     puts(value);
   }
@@ -110,7 +99,7 @@ void wifiRxHandler(void *value) {
 
   wifiModuleBooted = true;
 
-  irq_isr_exit();
+  cortexm_isr_end();
 }
 /**
  * @brief

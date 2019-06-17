@@ -34,19 +34,6 @@
 #include "vendor/hw_timer.h"
 #include "vendor/hw_types.h"
 
-static uint32_t irq_interrupt_nesting;
-#define irq_isr_enter()                                                        \
-  int _irq_state = irq_disable();                                              \
-  irq_interrupt_nesting++;
-
-/** Macro that has to be used at the exit point of an ISR */
-#define irq_isr_exit()                                                         \
-  if (irq_interrupt_nesting)                                                   \
-    irq_interrupt_nesting--;                                                   \
-  irq_restore(_irq_state);                                                     \
-  if (sched_context_switch_request)                                            \
-    thread_yield();
-
 #define MAX_TIMERS TIMER_NUMOF
 
 typedef struct {
@@ -112,11 +99,10 @@ static timer_conf_t timer_config[] = {{
                                       }};
 
 void timerHandler(tim_t dev) {
-  irq_isr_enter();
   timer_clear(dev, 0);
   timer_config[dev].ctx.cb(timer_config[dev].ctx.arg,
                            0); // timer has one hw channel
-  irq_isr_exit();
+  cortexm_isr_end();
 }
 
 void irqTimer0Handler(void) { timerHandler(T0); }
