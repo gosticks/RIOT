@@ -45,23 +45,15 @@
 #define EXTERNAL_SPI 0U
 #define CC3100_SPI 1U
 
-/* guard this file in case no SPI device is defined */
-// #if SPI_NUMOF
-
-static unsigned long bitrate[] = {[SPI_CLK_100KHZ] = 100000,
-                                  [SPI_CLK_400KHZ] = 400000,
-                                  [SPI_CLK_1MHZ] = 1000000,
-                                  [SPI_CLK_5MHZ] = 5000000,
-                                  [SPI_CLK_10MHZ] = 10000000};
-
-static const spi_conf_t spi_config[] = {{.busaddr = GSPI_BASE,
-                                         .sck = PIN_05,
-                                         .miso = PIN_06,
-                                         .mosi = PIN_07,
-                                         .cs = PIN_08},
-                                        {
-                                            .busaddr = LSPI_BASE,
-                                        }};
+static const spi_conf_t spi_config[] = {
+    {
+        .base_addr = GSPI_BASE,
+        .gpio_port = 0,
+        .pins =
+            (spi_pins_t){
+                .miso = PIN_06, .sck = PIN_05, .mosi = PIN_07, .cs = PIN_08},
+    },
+    {.base_addr = LSPI_BASE, .gpio_port = 1}};
 
 /**
  * @brief   Allocate one lock per SPI device
@@ -76,13 +68,13 @@ void spi_init_pins(spi_t bus) {
     MAP_PRCMPeripheralClkEnable(PRCM_GSPI, PRCM_RUN_MODE_CLK);
     // TODO: use gpio_init for this when PIN_MODE mapping is done
     // GSPI_CLK
-    MAP_PinTypeSPI(spi_config[bus].sck, PIN_MODE_7);
+    MAP_PinTypeSPI(spi_config[bus].pins.sck, PIN_MODE_7);
     // set MISO pin
-    MAP_PinTypeSPI(spi_config[bus].miso, PIN_MODE_7);
+    MAP_PinTypeSPI(spi_config[bus].pins.miso, PIN_MODE_7);
     // set GSPI_MOSI
-    MAP_PinTypeSPI(spi_config[bus].mosi, PIN_MODE_7);
+    MAP_PinTypeSPI(spi_config[bus].pins.mosi, PIN_MODE_7);
     // set GSPI_CS
-    MAP_PinTypeSPI(spi_config[bus].cs, PIN_MODE_7);
+    MAP_PinTypeSPI(spi_config[bus].pins.cs, PIN_MODE_7);
 
     break;
   case CC3100_SPI:
@@ -98,15 +90,15 @@ void enable_peiph_clk(unsigned long bus, unsigned long mask) {
 
 void spi_reset(spi_t bus) {
   // Disable Chip Select
-  MAP_SPICSDisable(spi_config[bus].busaddr);
+  MAP_SPICSDisable(spi_config[bus].base_addr);
 
   // Disable SPI Channel
-  MAP_SPIDisable(spi_config[bus].busaddr);
+  MAP_SPIDisable(spi_config[bus].base_addr);
 
   // reset SPI
-  MAP_SPIReset(spi_config[bus].busaddr);
+  MAP_SPIReset(spi_config[bus].base_addr);
 
-  MAP_SPIEnable(spi_config[bus].busaddr);
+  MAP_SPIEnable(spi_config[bus].base_addr);
 }
 
 void spi_init(spi_t bus) {
@@ -141,16 +133,16 @@ int spi_acquire(spi_t bus, spi_cs_t cs, spi_mode_t mode, spi_clk_t clk) {
   // default clocks enable clock
   switch (bus) {
   case EXTERNAL_SPI:
-    MAP_SPIConfigSetExpClk(spi_config[bus].busaddr,
-                           MAP_PRCMPeripheralClockGet(PRCM_GSPI), 20000000,
+    MAP_SPIConfigSetExpClk(spi_config[bus].base_addr,
+                           MAP_PRCMPeripheralClockGet(PRCM_GSPI), clk,
                            SPI_MODE_MASTER, mode,
                            (SPI_HW_CTRL_CS | SPI_4PIN_MODE | SPI_TURBO_OFF |
                             SPI_CS_ACTIVELOW | SPI_WL_8));
     break;
   case CC3100_SPI:
-    MAP_SPIConfigSetExpClk(spi_config[bus].busaddr,
-                           MAP_PRCMPeripheralClockGet(PRCM_LSPI), 20000000,
-                           SPI_MODE_MASTER, SPI_SUB_MODE_0,
+    MAP_SPIConfigSetExpClk(spi_config[bus].base_addr,
+                           MAP_PRCMPeripheralClockGet(PRCM_LSPI), clk,
+                           SPI_MODE_MASTER, mode,
                            (SPI_SW_CTRL_CS | SPI_4PIN_MODE | SPI_TURBO_OFF |
                             SPI_CS_ACTIVEHIGH | SPI_WL_32));
     break;
@@ -177,7 +169,7 @@ void spi_transfer_bytes(spi_t bus, spi_cs_t cs, bool cont, const void *out,
 
   // MAP_SPITransfer(GSPI_BASE, (unsigned char*)out, (unsigned char*)in, length,
   // SPI_CS_ENABLE|SPI_CS_DISABLE);
-  MAP_SPITransfer(spi_config[bus].busaddr, (unsigned char *)out,
+  MAP_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
                   (unsigned char *)in, len, 0);
 }
 
@@ -186,11 +178,11 @@ uint8_t spi_transfer_reg(spi_t bus, spi_cs_t cs, uint8_t reg, uint8_t out) {
     return -1;
   }
   // MAP_SPITransfer(GSPI_BASE, &reg, 0, 1, SPI_CS_ENABLE);
-  MAP_SPITransfer(spi_config[bus].busaddr, &reg, 0, 1, 0);
+  MAP_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
 
   // if (MAP_SPITransfer(GSPI_BASE, (unsigned char*)&out, (unsigned char*)in, 1,
   // SPI_CS_DISABLE)) {
-  if (MAP_SPITransfer(spi_config[bus].busaddr, (unsigned char *)&out, 0, 1,
+  if (MAP_SPITransfer(spi_config[bus].base_addr, (unsigned char *)&out, 0, 1,
                       0)) {
     return -1;
   }
@@ -203,10 +195,10 @@ void spi_transfer_regs(spi_t bus, spi_cs_t cs, uint8_t reg, const void *out,
     return;
   }
   // MAP_SPITransfer(GSPI_BASE, &reg, 0, 1, SPI_CS_ENABLE);
-  MAP_SPITransfer(spi_config[bus].busaddr, &reg, 0, 1, 0);
+  MAP_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
   // if(MAP_SPITransfer(GSPI_BASE, (unsigned char*)&out, (unsigned char*)in,
   // length, SPI_CS_DISABLE)) {
-  if (MAP_SPITransfer(spi_config[bus].busaddr, (unsigned char *)out,
+  if (MAP_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
                       (unsigned char *)in, len, 0)) {
     return;
   }

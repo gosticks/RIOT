@@ -37,14 +37,6 @@ extern "C" {
 #define T3 TIMER_DEV(3U)
 
 /**
- * @name    Define a custom type for GPIO pins
- * @{
- */
-#define HAVE_GPIO_T
-typedef uint32_t gpio_t;
-/** @} */
-
-/**
  * @name    Power management configuration
  * @{
  */
@@ -52,23 +44,6 @@ typedef uint32_t gpio_t;
 #define PROVIDES_PM_RESTART
 #define PROVIDES_PM_OFF
 /** @} */
-
-/**
- * @brief   Define a CPU specific GPIO pin generator macro
- */
-#define GPIO_PIN(x, y) ((x << 6) | y)
-#define GPIO_PINS_PER_PORT 8
-#define LED_RED GPIO_PIN(1, 9)
-#define LED_ORANGE GPIO_PIN(1, 10)
-#define LED_GREEN GPIO_PIN(1, 11)
-
-typedef struct {
-  unsigned long busaddr; /**< bus address */
-  gpio_t mosi;           /**< pin used for MOSI */
-  gpio_t miso;           /**< pin used for MISO */
-  gpio_t sck;            /**< pin used for SCK */
-  gpio_t cs;             /**< pin used for CS */
-} spi_conf_t;
 
 // /**
 //  * @name   Override the default GPIO mode settings

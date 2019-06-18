@@ -39,6 +39,7 @@
 // #include "periph/gpio.h"
 extern const void cortex_vector_base;
 
+#ifdef HAVE_GPIO_T
 /**
  * @brief Initialize on-board LEDs
  */
@@ -58,16 +59,17 @@ void led_init(void) {
   gpio_init(LED_GREEN, GPIO_OUT);
   gpio_clear(LED_GREEN);
 }
-
+#endif
 /**
  * @brief Initialize the board
  */
 void board_init(void) {
   /* initialize the CPU */
   cpu_init();
-
+#ifdef HAVE_GPIO_T
   /* initialize the boards LEDs */
   led_init();
+#endif
 }
 
 /** @} */

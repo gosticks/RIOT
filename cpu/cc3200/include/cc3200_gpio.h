@@ -42,6 +42,23 @@ enum {
     GPIO_PORT_A3 = 3,
 };
 
+/**
+ * @name    Define a custom type for GPIO pins
+ * @{
+ */
+#define HAVE_GPIO_T
+typedef uint32_t gpio_t;
+/** @} */
+/**
+ * @brief   Define a CPU specific GPIO pin generator macro
+ */
+#define GPIO_PIN(x, y) ((x << 6) | y)
+#define GPIO_PINS_PER_PORT 8
+
+#define LED_RED GPIO_PIN(1, 9)
+#define LED_ORANGE GPIO_PIN(1, 10)
+#define LED_GREEN GPIO_PIN(1, 11)
+
 
 #ifdef __cplusplus
 } /* end extern "C" */
