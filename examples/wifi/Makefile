@@ -1,6 +1,8 @@
 # name of your application
 APPLICATION = hello-world
 
+FEATURES_REQUIRED = periph_spi
+
 # If no BOARD is found in the environment, use this default:
 BOARD ?= native
 
