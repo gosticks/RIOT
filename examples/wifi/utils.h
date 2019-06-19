@@ -5,6 +5,8 @@
 
 #define alignDataLen(len) ((len) + 3) & (~3)
 
+void maskWifiInterrupt(void);
+void unmaskWifiInterrupt(void);
 CC3200_RomInfo *getDeviceRomInfo(void);
 // uint16_t alignDataLen(uint16_t len);
 void sliceFirstInBuffer(uint8_t *buf, int len);

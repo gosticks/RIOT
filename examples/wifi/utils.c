@@ -28,3 +28,6 @@ void sliceFirstInBuffer(uint8_t *buf, int len) {
   }
   buf[len - 1] = 0;
 }
+
+void maskWifiInterrupt(void) { (*(unsigned long *)0x400F7088) = 0x1; }
+void unmaskWifiInterrupt(void) { (*(unsigned long *)0x400F708C) = 0x1; }
