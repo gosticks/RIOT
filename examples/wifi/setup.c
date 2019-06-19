@@ -14,12 +14,14 @@
 #include "driverlib/rom_map.h"
 #include "driverlib/spi.h"
 #include "driverlib/utils.h"
+#include "periph/spi.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 
 static bool wifiModuleBooted = false;
+static uint8_t handledIrqsCount = 0;
 
 // wifi module register memory map
 // volatile CC3200_MCSPI* wifiReg = (struct CC3200_MCSPI *)WIFI_SPI_BASE;
@@ -32,17 +34,15 @@ uint32_t getSPIBitRate(uint8_t minorVer) {
   switch (minorVer) {
   case ROM_VER_PG1_21:
   case ROM_VER_PG1_32:
-    return SPI_RATE_13M;
+    return SPI_CLK_13MHZ;
     break;
   case ROM_VER_PG1_33:
-    return SPI_RATE_20M;
+    return SPI_CLK_20MHZ;
     break;
   default:
     return 0;
   }
 }
-
-static inline void maskWifiInterrupt(void) { HWREG(0x400F7088) = 0x1; }
 
 int registerRxInterruptHandler(SimpleLinkEventHandler handler) {
   MAP_IntRegister(INT_NWPIC, handler);
@@ -84,7 +84,51 @@ void powerOnWifi(void) {
   HWREG(0x44025118) = 1;
 
   // UnMask Host interrupt
-  (*(unsigned long *)REG_INT_MASK_CLR) = 0x1;
+  unmaskWifiInterrupt();
+}
+
+static uint8_t sharedBuffer[1024];
+typedef struct {
+  _u8 connection_type; /* 0-STA,3-P2P_CL */
+  _u8 ssid_len;
+  _u8 ssid_name[32];
+  _u8 go_peer_device_name_len;
+  _u8 go_peer_device_name[32];
+  _u8 bssid[6];
+  _u8 reason_code;
+  _u8 padding[2];
+} slWlanConnectAsyncResponse_t;
+
+typedef struct {
+  _u32 ip;
+  _u32 gateway;
+  _u32 dns;
+} SlIpV4AcquiredAsync_t;
+
+void handleWlanConnectedResponse(void) {
+  slWlanConnectAsyncResponse_t *test =
+      (slWlanConnectAsyncResponse_t *)sharedBuffer;
+  puts((char *)test->ssid_name);
+}
+
+void handleIpAcquired(void) {
+  SlIpV4AcquiredAsync_t *test = (SlIpV4AcquiredAsync_t *)sharedBuffer;
+  uint8_t *octets = (uint8_t *)&test->ip;
+  printf("IP %u.%u.%u.%u", octets[3], octets[2], octets[1], octets[0]);
+}
+
+void defaultCommandHandler(cc3200_SlResponseHeader *header) {
+  // printf("GOT RESPONSE: opcode=%d", header->GenHeader.Opcode);
+  read(sharedBuffer, header->GenHeader.Len);
+  switch (header->GenHeader.Opcode) {
+  case SL_OPCODE_WLAN_WLANASYNCCONNECTEDRESPONSE:
+    handleWlanConnectedResponse();
+    break;
+  case SL_OPCODE_NETAPP_IPACQUIRED:
+    handleIpAcquired();
+    break;
+  }
+  unmaskWifiInterrupt();
 }
 
 /**
@@ -95,9 +139,17 @@ void wifiRxHandler(void *value) {
   if (value != NULL) {
     puts(value);
   }
+  handledIrqsCount++;
   maskWifiInterrupt();
-
-  wifiModuleBooted = true;
+  // initWifiModule is waiting for the setup command so
+  // only use default handler after that
+  if (wifiModuleBooted) {
+    cc3200_SlResponseHeader cmd;
+    readCmdHeader(&cmd);
+    defaultCommandHandler(&cmd);
+  } else {
+    wifiModuleBooted = true;
+  }
 
   cortexm_isr_end();
 }
@@ -119,11 +171,16 @@ int initWifiModule(void) {
   }
   cc3200_SlResponseHeader cmd;
   readCmdHeader(&cmd);
-
+  unmaskWifiInterrupt();
   // check for INITCOMPLETE opcode
   if (cmd.GenHeader.Opcode != 0x0008) {
     printf("ERR wifi module: invalid opcode %d received", cmd.GenHeader.Opcode);
     return -1;
+  }
+
+  // wait till device is ready for commands
+  while (cmd.GenHeader.Opcode != 0x0063) {
+    readCmdHeader(&cmd);
   }
 
   return 0;
