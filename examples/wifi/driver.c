@@ -4,6 +4,7 @@
 #include "vendor/hw_types.h"
 #include "vendor/hw_udma.h"
 
+#include "cc3200_spi.h"
 #include "driverlib/interrupt.h"
 #include "driverlib/pin.h"
 #include "driverlib/prcm.h"
@@ -12,12 +13,14 @@
 #include "driverlib/utils.h"
 
 #include "proto.h"
+#include "protocol.h"
 #include "setup.h"
 #include "utils.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 
-static volatile CC3200_MCSPI *wifiReg = (struct CC3200_MCSPI *)WIFI_SPI_BASE;
+static volatile cc3200_spi_t *wifiReg = (struct cc3200_spi_t *)WIFI_SPI_BASE;
 const _SlSyncPattern_t g_H2NSyncPattern = CPU_TO_NET_CHIP_SYNC_PATTERN;
 const _SlSyncPattern_t g_H2NCnysPattern = CPU_TO_NET_CHIP_CNYS_PATTERN;
 static int TxSeqNum = 0;
@@ -80,10 +83,7 @@ int send(uint8_t *in, int len) {
     // increment pointers
     ulDataOut++;
   }
-  if (ulDataIn != 0) {
-    puts((char *)ulDataIn);
-  }
-  // UNUSED(ulDataIn);
+  (void)ulDataIn;
 
   // disable spi again
   MAP_SPICSDisable(WIFI_SPI_BASE);
@@ -143,8 +143,8 @@ void sendShortSync(void) {
 }
 
 void sendHeader(uint16_t opcode, uint16_t len) {
-  cc3200_CmdHeader header = {opcode, len};
-  send((uint8_t *)&header, sizeof(cc3200_CmdHeader));
+  _SlGenericHeader_t header = {opcode, len};
+  send((uint8_t *)&header, sizeof(_SlGenericHeader_t));
 }
 
 void sendPowerOnPreamble(void) {
