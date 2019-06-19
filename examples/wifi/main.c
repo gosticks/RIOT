@@ -22,6 +22,7 @@
 #include <stdio.h>
 // #include "board.h"
 
+#include "cmd.h"
 #include "driver.h"
 #include "driverlib/rom_map.h"
 #include "periph/cpuid.h"
@@ -31,42 +32,22 @@
 #include "utils.h"
 #include "xtimer.h"
 
+#define LED_RED GPIO_PIN(1, 9)
+#define LED_ORANGE GPIO_PIN(1, 10)
+#define LED_GREEN GPIO_PIN(1, 11)
+
 const WifiCtrlCmd DeviceGetCommand = {
     0x8466, // SL_OPCODE_DEVICE_DEVICEGET,
-    sizeof(cc3200_DeviceSetGet_t),
-    sizeof(cc3200_DeviceSetGet_t),
+    sizeof(_DeviceSetGet_t),
+    sizeof(_DeviceSetGet_t),
 };
 
 // unsigned char g_ucDMAEnabled = 0;
 void test_write(void) {
-  // uint16_t ucConfigOpt = 12;
-
-  // short sync pattern for SPI based connection
-  // _write_sync_patter();
-
-  // write command header
-  uint16_t len = alignDataLen(
-      DeviceGetCommand.TxDescLen); // TODO: also add payload size here
-  sendHeader(DeviceGetCommand.Opcode, len);
-
-  // SlVersionFull ver;
-
-  // cc3200_DeviceMsgGet_u Msg;
-  // Msg.Cmd.DeviceSetId = 1;
-  // Msg.Cmd.Option = ucConfigOpt;
-
-  // now read
-  sendShortSync();
-
-  // reset read word count
-  MAP_SPIWordCountSet(WIFI_SPI_BASE, 0);
-
-  uint8_t buf[sizeof(cc3200_SlResponseHeader)];
-
-  // read 4 bytes into buffer
-  read(buf, 4);
-  // write content
-  // send();
+  SlVersionFull ver = {0};
+  getDeviceInfo(&ver);
+  printf("Got version info: %lu", ver.ChipFwAndPhyVersion.ChipId);
+  (void)ver;
 }
 
 /**
