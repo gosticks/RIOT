@@ -1,10 +1,12 @@
 #ifndef CC3200_WIFI_PROTO
 #define CC3200_WIFI_PROTO
 
+#include "protocol.h"
 #include <stdint.h>
 
 // base address of the wifi spi peripherials
 #define WIFI_SPI_BASE 0x44022000
+#define WIFI_REG (cc3200_spi_t *)WIFI_SPI_BASE
 
 // ROM VERSIONS
 #define ROM_VER_PG1_21 1
@@ -40,11 +42,6 @@
 #define wifi_opcode uint16_t
 
 // Wifi module comunication utils
-// TODO: for now a copy of TI's mactros
-/*  2 LSB of the N2H_SYNC_PATTERN are for sequence number
-only in SPI interface
-support backward sync pattern */
-#define N2H_SYNC_PATTERN (uint32_t)0xABCDDCBA
 #define N2H_SYNC_PATTERN_SEQ_NUM_BITS                                          \
   ((uint32_t)0x00000003) /* Bits 0..1    - use the 2 LBS for seq num */
 #define N2H_SYNC_PATTERN_SEQ_NUM_EXISTS                                        \
@@ -82,28 +79,16 @@ typedef struct CC3200_RomInfo {
 } CC3200_RomInfo;
 
 typedef struct {
-  uint16_t Opcode;
-  uint16_t Len;
-} cc3200_CmdHeader;
-
-typedef struct {
-  cc3200_CmdHeader GenHeader;
+  _SlGenericHeader_t GenHeader;
   uint8_t TxPoolCnt;
   uint8_t DevStatus;
   uint8_t SocketTXFailure;
   uint8_t SocketNonBlocking;
 } cc3200_SlResponseHeader;
 
-typedef struct {
-  uint16_t Status;
-  uint16_t DeviceSetId;
-  uint16_t Option;
-  uint16_t ConfigLen;
-} cc3200_DeviceSetGet_t;
-
 typedef union {
-  cc3200_DeviceSetGet_t Cmd;
-  cc3200_DeviceSetGet_t Rsp;
+  _DeviceSetGet_t Cmd;
+  _DeviceSetGet_t Rsp;
 } cc3200_DeviceMsgGet_u;
 
 typedef struct {
@@ -122,47 +107,6 @@ typedef struct cc3200_SpiStatusReg {
   uint8_t txs;
 } cc3200_SpiStatusReg;
 
-typedef struct cc3200_hwinfo {
-  unsigned long u1;
-  unsigned long u2;
-  unsigned long u3;
-  unsigned long u4;
-} cc3200_hwinfo;
-
-typedef struct cc3200_rev {
-  mscpi_reg u1;
-  mscpi_reg u2;
-  mscpi_reg u3;
-} cc3200_rev;
-
-typedef struct CC3200_MCSPI {
-  unsigned long rev;    // hardware revision
-  cc3200_hwinfo hwinfo; // hardware info (HDL generics)
-  // TODO: proper sysconfig struct
-  char pad0[240];          // Sysconfig
-  cc3200_rev sys_rev;      // IRQEnable
-  mscpi_reg sys_conf;      // System config
-  mscpi_reg sys_status;    // Sysstatus
-  mscpi_reg irq_status;    // IRQStatus
-  mscpi_reg irq_enable;    // IRQEnable
-  mscpi_reg wakeup_enable; // Wakeupenable
-  mscpi_reg sys_test;      // system test mode
-  mscpi_reg module_ctl;    // MODULE CTL
-  mscpi_reg ch0_conf_ctl;  // CH0CONF CTL
-  mscpi_reg stat;          // CH0 Status register
-  mscpi_reg ctrl;          // CH0 Control register
-  mscpi_reg tx0;           // single spi transmit word
-  mscpi_reg rx0;           // single spi receive word
-} CC3200_MCSPI;
-
-
-typedef struct {
-  uint32_t Long;
-  uint16_t Short;
-  uint8_t Byte1;
-  uint8_t Byte2;
-} _SlSyncPattern_t;
-
 typedef struct {
   uint32_t ChipId;
   uint32_t FwVersion[4];
@@ -175,5 +119,94 @@ typedef struct {
   uint16_t RomVersion;
   uint16_t Padding;
 } SlVersionFull;
+
+typedef struct {
+  wifi_opcode Opcode;
+  uint8_t TxDescLen;
+  uint8_t RxDescLen;
+} _SlCmdCtrl_t;
+
+typedef struct {
+  _u16 TxPayloadLen;
+  _u16 RxPayloadLen;
+  _u16 ActualRxPayloadLen;
+  _u8 *pTxPayload;
+  _u8 *pRxPayload;
+} _SlCmdExt_t;
+
+typedef struct _SlArgsData_t {
+  _u8 *pArgs;
+  _u8 *pData;
+} _SlArgsData_t;
+
+// typedef struct _SlPoolObj_t {
+//   _SlSyncObj_t SyncObj;
+//   _u8 *pRespArgs;
+//   _u8 ActionID;
+//   _u8 AdditionalData; /* use for socketID and one bit which indicate supprt
+//   IPV6
+//                          or not (1=support, 0 otherwise) */
+//   _u8 NextIndex;
+
+// } _SlPoolObj_t;
+
+typedef enum {
+  SOCKET_0,
+  SOCKET_1,
+  SOCKET_2,
+  SOCKET_3,
+  SOCKET_4,
+  SOCKET_5,
+  SOCKET_6,
+  SOCKET_7,
+  MAX_SOCKET_ENUM_IDX,
+  ACCEPT_ID = MAX_SOCKET_ENUM_IDX,
+  CONNECT_ID,
+  SELECT_ID,
+  GETHOSYBYNAME_ID,
+  GETHOSYBYSERVICE_ID,
+  PING_ID,
+  START_STOP_ID,
+  RECV_ID
+} _SlActionID_e;
+
+// typedef struct _SlActionLookup_t {
+//   _u8 ActionID;
+//   _u16 ActionAsyncOpcode;
+//   _SlSpawnEntryFunc_t AsyncEventHandler;
+
+// } _SlActionLookup_t;
+
+// typedef struct {
+//   _u8 TxPoolCnt;
+//   _SlLockObj_t TxLockObj;
+//   _SlSyncObj_t TxSyncObj;
+// } _SlFlowContCB_t;
+
+typedef enum {
+  RECV_RESP_CLASS,
+  CMD_RESP_CLASS,
+  ASYNC_EVT_CLASS,
+  DUMMY_MSG_CLASS
+} _SlRxMsgClass_e;
+
+// typedef struct {
+//   _u8 *pAsyncBuf; /* place to write pointer to buffer with CmdResp's Header +
+//                      Arguments */
+//   _u8 ActionIndex;
+//   _SlSpawnEntryFunc_t AsyncEvtHandler; /* place to write pointer to
+//   AsyncEvent
+//                                           handler (calc-ed by Opcode)   */
+//   _SlRxMsgClass_e RxMsgClass;          /* type of Rx message          */
+// } AsyncExt_t;
+
+typedef _u8 _SlSd_t;
+
+// typedef struct {
+//   _SlCmdCtrl_t *pCmdCtrl;
+//   _u8 *pTxRxDescBuff;
+//   _SlCmdExt_t *pCmdExt;
+//   AsyncExt_t AsyncExt;
+// } _SlFunctionParams_t;
 
 #endif
