@@ -6,7 +6,7 @@
 int read(uint8_t *buf, int len);
 int send(uint8_t *in, int len);
 void sendShortSync(void);
-void sendHeader(uint16_t opcode, uint16_t len);
+void sendHeader(_SlGenericHeader_t *header);
 int readCmdHeader(cc3200_SlResponseHeader *resp);
 void sendPowerOnPreamble(void);
 

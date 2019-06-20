@@ -1,5 +1,6 @@
 #include "driver.h"
 #include "proto.h"
+#include "state.h"
 #include "utils.h"
 #include "xtimer.h"
 
@@ -19,6 +20,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 
 static bool wifiModuleBooted = false;
 static uint8_t handledIrqsCount = 0;
@@ -118,8 +120,39 @@ void handleIpAcquired(void) {
 }
 
 void defaultCommandHandler(cc3200_SlResponseHeader *header) {
-  // printf("GOT RESPONSE: opcode=%d", header->GenHeader.Opcode);
-  read(sharedBuffer, header->GenHeader.Len);
+  // printf("GOT RESPONSE: opcode=%x, len=%d", header->GenHeader.Opcode,
+  //        header->GenHeader.Len);
+
+  // the response is copied to this buffer at the end if
+  //  1. a matching request is in the queue
+  //  2. the request buffer is too small to contain the whole response
+  uint8_t *copy = NULL;
+  uint16_t copyLen = 0;
+  uint8_t *buffer = sharedBuffer;
+
+  // check if any command is waiting on a response if so we can use
+  // its buffer to avoid having to copy the data
+  for (uint8_t i = 0; state.curReqCount != 0 && i < REQUEST_QUEUE_SIZE; i++) {
+    if (state.requestQueue[i] == NULL ||
+        state.requestQueue[i]->Opcode != header->GenHeader.Opcode) {
+      continue;
+    }
+    state.requestQueue[i]->Waiting = false;
+
+    // check if buffer has enough space for the full response
+    if (state.requestQueue[i]->BufferSize <= header->GenHeader.Len) {
+      buffer = state.requestQueue[i]->Buffer;
+    } else {
+      copyLen = state.requestQueue[i]->BufferSize;
+      copy = state.requestQueue[i]->Buffer;
+    }
+    removeFromQueue(state.requestQueue[i]);
+  }
+
+  // command data from response (description + (payload))
+  read(buffer, header->GenHeader.Len);
+
+  // handle commands
   switch (header->GenHeader.Opcode) {
   case SL_OPCODE_WLAN_WLANASYNCCONNECTEDRESPONSE:
     handleWlanConnectedResponse();
@@ -128,6 +161,12 @@ void defaultCommandHandler(cc3200_SlResponseHeader *header) {
     handleIpAcquired();
     break;
   }
+
+  // copy response data to provided data
+  if (copy != NULL) {
+    memcpy(copy, buffer, copyLen);
+  }
+
   unmaskWifiInterrupt();
 }
 
@@ -136,9 +175,10 @@ void defaultCommandHandler(cc3200_SlResponseHeader *header) {
  *
  */
 void wifiRxHandler(void *value) {
-  if (value != NULL) {
-    puts(value);
-  }
+  (void)value;
+  // if (value != NULL) {
+  //   puts(value);
+  // }
   handledIrqsCount++;
   maskWifiInterrupt();
   // initWifiModule is waiting for the setup command so

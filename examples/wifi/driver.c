@@ -142,9 +142,8 @@ void sendShortSync(void) {
   send((uint8_t *)&g_H2NSyncPattern.Short, sizeof(uint32_t));
 }
 
-void sendHeader(uint16_t opcode, uint16_t len) {
-  _SlGenericHeader_t header = {opcode, len};
-  send((uint8_t *)&header, sizeof(_SlGenericHeader_t));
+void sendHeader(_SlGenericHeader_t *header) {
+  send((uint8_t *)header, sizeof(_SlGenericHeader_t));
 }
 
 void sendPowerOnPreamble(void) {
