@@ -78,6 +78,16 @@ typedef struct CC3200_RomInfo {
   uint16_t ucYear;
 } CC3200_RomInfo;
 
+typedef struct WifiProfileConfig {
+  _WlanAddGetProfile_t common;
+  // base station name
+  char *ssid;
+  char *key;
+  // enterprise config
+  // char user[MAX_USER_LEN];
+
+} WifiProfileConfig;
+
 typedef struct {
   _SlGenericHeader_t GenHeader;
   uint8_t TxPoolCnt;
