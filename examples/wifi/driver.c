@@ -23,7 +23,7 @@
 static volatile cc3200_spi_t *wifiReg = (struct cc3200_spi_t *)WIFI_SPI_BASE;
 const _SlSyncPattern_t g_H2NSyncPattern = CPU_TO_NET_CHIP_SYNC_PATTERN;
 const _SlSyncPattern_t g_H2NCnysPattern = CPU_TO_NET_CHIP_CNYS_PATTERN;
-static int TxSeqNum = 0;
+static uint32_t TxSeqNum = 0;
 
 int read(uint8_t *buf, int len) {
   unsigned long ulCnt;
@@ -100,7 +100,7 @@ int _readCmdHeader(uint8_t *buf, uint8_t *align) {
   // read 4 bytes
   read(buf, 4);
   while (!N2H_SYNC_PATTERN_MATCH(buf, TxSeqNum)) {
-    if (0 == (SyncCnt % 4)) {
+    if (0 == (SyncCnt % (uint32_t)4)) {
       read(&buf[4], 4);
     }
 
