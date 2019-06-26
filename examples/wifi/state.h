@@ -5,11 +5,19 @@
 
 typedef struct DriverRequest
 {
-    uint16_t ID;
+    uint8_t ID;
     uint16_t Opcode;
+    
+    // response description buffers
+    uint8_t *DescBuffer;
+    uint16_t DescBufferSize;
+
+    // Payload buffers
+    uint8_t *PayloadBuffer;
+    uint16_t PayloadBufferSize;
+
+    // current request state
     bool Waiting;
-    uint8_t *Buffer;
-    uint16_t BufferSize;
 } DriverRequest;
 
 typedef struct DriverState
