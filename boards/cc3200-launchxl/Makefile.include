@@ -7,7 +7,8 @@ ifneq (,$(filter gnrc_netdev_default,$(USEMODULE)))
 endif
 
 # setup serial terminal
-export PORT_LINUX ?=/dev/ttyUSB0 # if multiple MCUs are connected the last number will increment
+# if multiple MCUs are connected the last number will increment
+export PORT_LINUX ?=/dev/ttyUSB0
 export PORT_DARWIN ?= $(firstword $(sort $(wildcard /dev/tty.usbmodem*)))
 
 # setup serial terminal
