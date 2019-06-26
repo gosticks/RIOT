@@ -1,3 +1,4 @@
+#include "cmd.h"
 #include "driver.h"
 #include "proto.h"
 #include "state.h"
@@ -22,7 +23,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool wifiModuleBooted = false;
+// static bool wifiModuleBooted = false;
 static uint8_t handledIrqsCount = 0;
 
 // wifi module register memory map
@@ -110,25 +111,23 @@ typedef struct {
 void handleWlanConnectedResponse(void) {
   slWlanConnectAsyncResponse_t *test =
       (slWlanConnectAsyncResponse_t *)sharedBuffer;
-  puts((char *)test->ssid_name);
+  printf("[WIFI] connected to SSID ");
+  printChars((char *)test->ssid_name, test->ssid_len);
+  printf("\n");
 }
 
 void handleIpAcquired(void) {
   SlIpV4AcquiredAsync_t *test = (SlIpV4AcquiredAsync_t *)sharedBuffer;
   uint8_t *octets = (uint8_t *)&test->ip;
-  printf("IP %u.%u.%u.%u", octets[3], octets[2], octets[1], octets[0]);
+  printf("[WIFI] acquired IP %u.%u.%u.%u \n", octets[3], octets[2], octets[1],
+         octets[0]);
 }
 
 void defaultCommandHandler(cc3200_SlResponseHeader *header) {
-  // printf("GOT RESPONSE: opcode=%x, len=%d", header->GenHeader.Opcode,
-  //        header->GenHeader.Len);
+  printf("[WIFI] incoming msg: opcode=%x, len=%d \n", header->GenHeader.Opcode,
+         header->GenHeader.Len);
 
-  // the response is copied to this buffer at the end if
-  //  1. a matching request is in the queue
-  //  2. the request buffer is too small to contain the whole response
-  uint8_t *copy = NULL;
-  uint16_t copyLen = 0;
-  uint8_t *buffer = sharedBuffer;
+  volatile DriverRequest *req = NULL;
 
   // check if any command is waiting on a response if so we can use
   // its buffer to avoid having to copy the data
@@ -137,20 +136,30 @@ void defaultCommandHandler(cc3200_SlResponseHeader *header) {
         state.requestQueue[i]->Opcode != header->GenHeader.Opcode) {
       continue;
     }
-    state.requestQueue[i]->Waiting = false;
-
-    // check if buffer has enough space for the full response
-    if (state.requestQueue[i]->BufferSize <= header->GenHeader.Len) {
-      buffer = state.requestQueue[i]->Buffer;
-    } else {
-      copyLen = state.requestQueue[i]->BufferSize;
-      copy = state.requestQueue[i]->Buffer;
-    }
+    req = state.requestQueue[i];
+    req->Waiting = false;
     removeFromQueue(state.requestQueue[i]);
   }
 
-  // command data from response (description + (payload))
-  read(buffer, header->GenHeader.Len);
+  // when we have a request read the buffer to the request
+  if (req != NULL) {
+    int16_t remainder = header->GenHeader.Len - req->DescBufferSize; 
+    if (req->DescBufferSize > 0 && remainder >= 0) {
+      read(req->DescBuffer, req->DescBufferSize);
+    }
+    remainder -=req->PayloadBufferSize; 
+    if (req->PayloadBufferSize > 0 && remainder >= 0) {
+      read(req->PayloadBuffer, req->PayloadBufferSize);
+    }
+
+    // read all remaining data
+    if (remainder > 0) {
+      read(sharedBuffer, remainder);
+    }
+  } else {
+    // otherwise read everything into shared buffer;
+    read(sharedBuffer, header->GenHeader.Len);
+  }
 
   // handle commands
   switch (header->GenHeader.Opcode) {
@@ -160,11 +169,6 @@ void defaultCommandHandler(cc3200_SlResponseHeader *header) {
   case SL_OPCODE_NETAPP_IPACQUIRED:
     handleIpAcquired();
     break;
-  }
-
-  // copy response data to provided data
-  if (copy != NULL) {
-    memcpy(copy, buffer, copyLen);
   }
 
   unmaskWifiInterrupt();
@@ -183,13 +187,10 @@ void wifiRxHandler(void *value) {
   maskWifiInterrupt();
   // initWifiModule is waiting for the setup command so
   // only use default handler after that
-  if (wifiModuleBooted) {
-    cc3200_SlResponseHeader cmd;
-    readCmdHeader(&cmd);
-    defaultCommandHandler(&cmd);
-  } else {
-    wifiModuleBooted = true;
-  }
+
+  cc3200_SlResponseHeader cmd;
+  readCmdHeader(&cmd);
+  defaultCommandHandler(&cmd);
 
   cortexm_isr_end();
 }
@@ -205,24 +206,13 @@ int initWifiModule(void) {
 
   powerOnWifi();
 
-  // loop till the wifi module has booted
-  while (!wifiModuleBooted) {
-    xtimer_sleep(1);
-  }
-  cc3200_SlResponseHeader cmd;
-  readCmdHeader(&cmd);
-  unmaskWifiInterrupt();
-  // check for INITCOMPLETE opcode
-  if (cmd.GenHeader.Opcode != 0x0008) {
-    printf("ERR wifi module: invalid opcode %d received", cmd.GenHeader.Opcode);
-    return -1;
-  }
+  volatile DriverRequest r = {
+      .Opcode = 0x0008, .Waiting = true, .DescBufferSize = 0};
+  addToQueue(&r);
 
-  // wait till device is ready for commands
-  while (cmd.GenHeader.Opcode != 0x0063) {
-    readCmdHeader(&cmd);
+  while (r.Waiting) {
   }
-
+  puts("[WIFI] setup completed");
   return 0;
 }
 
@@ -260,6 +250,7 @@ int initWifiSPI(void) {
                          (SPI_SW_CTRL_CS | SPI_4PIN_MODE | SPI_TURBO_OFF |
                           SPI_CS_ACTIVEHIGH | SPI_WL_32));
 
+  // TODO: add UDMA to improve transmission performance
   // if(MAP_PRCMPeripheralStatusGet(PRCM_UDMA))
   // {
   //   g_ucDMAEnabled = (HWREG(UDMA_BASE + UDMA_O_CTLBASE) != 0x0) ? 1 : 0;
@@ -277,6 +268,11 @@ int setupWifiModule(void) {
   }
   if (initWifiModule() != 0) {
     puts("failed to start wifi module");
+    return -1;
+  }
+  // 2 = AP mode, 0 = Station
+  if (setWifiMode(0) != 0) {
+    puts("failed to set wifi mode");
     return -1;
   }
   return 0;
