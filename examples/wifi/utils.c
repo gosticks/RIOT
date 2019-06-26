@@ -1,5 +1,5 @@
 #include "proto.h"
-
+#include <stdio.h>
 /**
  * @brief return the current rom info
  *
@@ -27,6 +27,12 @@ void sliceFirstInBuffer(uint8_t *buf, int len) {
     buf[i] = buf[i + 1];
   }
   buf[len - 1] = 0;
+}
+
+void printChars(char *str, uint16_t len) {
+  for (int i = 0; i < len; i++) {
+    printf("%c", str[i]);
+  }
 }
 
 void maskWifiInterrupt(void) { (*(unsigned long *)0x400F7088) = 0x1; }
