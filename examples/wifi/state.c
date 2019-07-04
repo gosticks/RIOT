@@ -4,7 +4,7 @@
 
 // #define REQUEST_MUX MUTEX_INIT
 
-DriverState state = {.requestQueue = {NULL}, .curReqCount = 0};
+DriverState state = {.requestQueue = {NULL}, .curReqCount = 0, .con = {.connected = 0}};
 
 void addToQueue(volatile DriverRequest *req) {
   // wait till the queue is free

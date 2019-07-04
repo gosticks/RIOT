@@ -90,7 +90,7 @@ void powerOnWifi(void) {
   unmaskWifiInterrupt();
 }
 
-static uint8_t sharedBuffer[1024];
+static uint8_t sharedBuffer[512];
 typedef struct {
   _u8 connection_type; /* 0-STA,3-P2P_CL */
   _u8 ssid_len;
@@ -114,6 +114,18 @@ void handleWlanConnectedResponse(void) {
   printf("[WIFI] connected to SSID ");
   printChars((char *)test->ssid_name, test->ssid_len);
   printf("\n");
+
+  // store values on the current state
+  state.con.type = test->connection_type;
+  state.con.ssidLen = test->ssid_len;
+
+  // copy ssid
+  memcpy(state.con.ssid, test->ssid_name, test->ssid_len);
+
+  // copy bssid
+  memcpy(state.con.bssid, test->bssid, 6);
+
+  state.con.connected = true;
 }
 
 void handleIpAcquired(void) {
@@ -124,8 +136,8 @@ void handleIpAcquired(void) {
 }
 
 void defaultCommandHandler(cc3200_SlResponseHeader *header) {
-  printf("[WIFI] incoming msg: opcode=%x, len=%d \n", header->GenHeader.Opcode,
-         header->GenHeader.Len);
+  printf("[WIFI] RECV: \033[1;32m%x \033[0m, len=%d\n",
+         header->GenHeader.Opcode, header->GenHeader.Len);
 
   volatile DriverRequest *req = NULL;
 
@@ -143,13 +155,24 @@ void defaultCommandHandler(cc3200_SlResponseHeader *header) {
 
   // when we have a request read the buffer to the request
   if (req != NULL) {
-    int16_t remainder = header->GenHeader.Len - req->DescBufferSize; 
+    int16_t remainder = header->GenHeader.Len - req->DescBufferSize;
+    if (remainder < 0) {
+      remainder = 0;
+    }
     if (req->DescBufferSize > 0 && remainder >= 0) {
       read(req->DescBuffer, req->DescBufferSize);
     }
-    remainder -=req->PayloadBufferSize; 
-    if (req->PayloadBufferSize > 0 && remainder >= 0) {
-      read(req->PayloadBuffer, req->PayloadBufferSize);
+
+    // payload can sometimes be smaller then expected
+    if (remainder < req->PayloadBufferSize) {
+      read(req->PayloadBuffer, remainder);
+      remainder = 0;
+    } else {
+      remainder -= req->PayloadBufferSize;
+
+      if (req->PayloadBufferSize > 0 && remainder >= 0) {
+        read(req->PayloadBuffer, req->PayloadBufferSize);
+      }
     }
 
     // read all remaining data
@@ -199,8 +222,6 @@ void wifiRxHandler(void *value) {
  *
  */
 int initWifiModule(void) {
-  powerOffWifi();
-
   // register callback when wifi module is powered back on
   registerRxInterruptHandler((SimpleLinkEventHandler)wifiRxHandler);
 
@@ -275,5 +296,10 @@ int setupWifiModule(void) {
     puts("failed to set wifi mode");
     return -1;
   }
+  // sendPowerOnPreamble();
+  // if (initWifiModule() != 0) {
+  //   puts("failed to start wifi module");
+  //   return -1;
+  // }
   return 0;
 }
