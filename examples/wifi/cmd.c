@@ -12,7 +12,7 @@
 #define SL_DEVICE_GENERAL_CONFIGURATION_DATE_TIME (11)
 #define SL_DEVICE_GENERAL_VERSION (12)
 #define SL_DEVICE_STATUS (2)
-#define CMD_TIMEOUT 40
+#define CMD_TIMEOUT 80
 
 #define MAX_SSID_LEN (32)
 #define MAX_KEY_LEN (63)
@@ -33,13 +33,15 @@ typedef struct DriverMessage {
       cmdDescLen; // length of the command description (not protocol aligned)
   uint8_t *payload;
   uint16_t payloadLen;
+  uint8_t *payloadHeader;
+  uint16_t payloadHeaderLen;
   bool receiveFlagsViaRxPayload;
 } DriverMessage;
 
 typedef struct DriverResponse {
   uint16_t resLen; // full length of response respDesc + payload
   uint16_t payloadLen;
-  uint8_t *data;   // full response data
+  uint8_t *data; // full response data
   uint8_t *payload;
 } DriverResponse;
 
@@ -50,19 +52,20 @@ const _SlCmdCtrl_t _SlDeviceGetCmdCtrl = {SL_OPCODE_DEVICE_DEVICEGET,
 #define DEVICE_INFO_RX_LEN                                                     \
   sizeof(_DeviceSetGet_t) + sizeof(SlVersionFull) + 4 // for some reason the
 
-void sendCommand(DriverMessage *msg, DriverResponse *res) {
-  printf("[WIFI] sending cmd opcode=%x \n", msg->Opcode);
+uint8_t sendCommand(DriverMessage *msg, DriverResponse *res) {
+  printf("\033[0;34m[WIFI]\033[0m SEND CMD: \033[1;33m%x\033[0m\n",
+         msg->Opcode);
   sendShortSync();
 
   // compute the total message size (the header is ignored by the server)
-  uint16_t cmdDescLen = alignDataLen(msg->payloadLen + msg->cmdDescLen);
+  uint16_t cmdDescLen =
+      alignDataLen(msg->payloadHeaderLen + msg->payloadLen + msg->cmdDescLen);
   _SlGenericHeader_t header = {.Opcode = msg->Opcode, .Len = cmdDescLen};
   // add request to the request queue
-  volatile DriverRequest req = {
-                                  .Opcode = msg->RespOpcode,
-                                  .Waiting = true,
-                                  .DescBufferSize = res->resLen,
-                                  .DescBuffer = res->data};
+  volatile DriverRequest req = {.Opcode = msg->RespOpcode,
+                                .Waiting = true,
+                                .DescBufferSize = res->resLen,
+                                .DescBuffer = res->data};
 
   if (res->payload != NULL) {
     req.PayloadBuffer = res->payload;
@@ -70,11 +73,21 @@ void sendCommand(DriverMessage *msg, DriverResponse *res) {
   }
 
   sendHeader(&header);
-  addToQueue(&req);
+  if (res != NULL) {
+    addToQueue(&req);
+  } else {
+    req.Waiting = false;
+  }
 
-  if (msg->cmdDescLen != 0) {
+  if (msg->cmdDescLen > 0) {
     // send command descriptions
     send(msg->cmdDesc, alignDataLen(msg->cmdDescLen));
+  }
+
+  // if a payload header is provided send it
+  if (msg->payloadHeaderLen > 0) {
+    // send command descriptions
+    send(msg->payloadHeader, alignDataLen(msg->payloadHeaderLen));
   }
 
   // send payload if provided
@@ -83,69 +96,83 @@ void sendCommand(DriverMessage *msg, DriverResponse *res) {
   }
 
   // wait for message response (rxHandler will copy the value to the res buffer)
+  int i;
   // TODO: may lead to problems in multithreaded envs
-  for (int i = CMD_TIMEOUT; req.Waiting && (i > 0); i--) {
+  for (i = CMD_TIMEOUT; req.Waiting && (i > 0); i--) {
     UtilsDelay(80 * 50000 / 3);
   }
+
+  if (i == 0 && req.Waiting) {
+    printf("[WIFI] response timeout for cmd opcode=%x \n", msg->Opcode);
+    return -1;
+  }
+  return 0;
 }
 
-int16_t setNetworkConfig(uint8_t configId, uint8_t configOpt, uint8_t configLen, uint8_t *payload) {
-  _NetCfgSetGet_t cmdDesc ={0};
-  
+int16_t setNetConfig(uint8_t configId, uint8_t configOpt, uint8_t configLen,
+                     uint8_t *payload) {
+  _NetCfgSetGet_t cmdDesc = {0};
+
   // copy config to the cmd
   cmdDesc.ConfigId = configId;
   cmdDesc.ConfigOpt = configOpt;
   cmdDesc.ConfigLen = configLen;
-  
+
   // create msg struct
   DriverMessage msg = {.Opcode = SL_OPCODE_DEVICE_NETCFG_SET_COMMAND,
                        .RespOpcode = SL_OPCODE_DEVICE_NETCFG_SET_RESPONSE,
                        .cmdDesc = (uint8_t *)&cmdDesc,
-                       .cmdDescLen = 8,
-                       .payloadLen = (configLen + 3) & (~3),
-                       .payload = payload 
-                       };
+                       .cmdDescLen = sizeof(_NetCfgSetGet_t),
+                       .payloadLen = configLen,
+                       .payload = payload};
 
   DriverResponse res = {
       .resLen = 8,
       .data = (uint8_t *)&cmdDesc,
   };
-  sendCommand(&msg, &res);
+  if (sendCommand(&msg, &res) != 0) {
+    return -1;
+  }
 
   // return status
   return cmdDesc.Status;
 }
-int16_t getNetworkConfig(uint8_t configId, uint8_t *configOpt, uint8_t configLen, uint8_t *resp) {
-  _NetCfgSetGet_t cmdDesc ={0};
+int16_t getNetConfig(uint8_t configId, uint8_t *configOpt, uint8_t configLen,
+                     uint8_t *resp) {
+  _NetCfgSetGet_t cmdDesc = {0};
   cmdDesc.ConfigId = configId;
   if (configOpt != NULL) {
     cmdDesc.ConfigOpt = *configOpt;
   }
   cmdDesc.ConfigLen = configLen;
-  
+
   // create msg struct
   DriverMessage msg = {.Opcode = SL_OPCODE_DEVICE_NETCFG_GET_COMMAND,
                        .RespOpcode = SL_OPCODE_DEVICE_NETCFG_GET_RESPONSE,
                        .cmdDesc = (uint8_t *)&cmdDesc,
-                       .cmdDescLen = 8,
+                       .cmdDescLen = sizeof(_NetCfgSetGet_t),
                        .payloadLen = 0};
 
-  DriverResponse res = {
-      .resLen = 8,
-      .data = (uint8_t *)&cmdDesc,
-      .payload = resp,
-      .payloadLen = configLen
-  };
-  sendCommand(&msg, &res);
+  DriverResponse res = {.resLen = 8,
+                        .data = (uint8_t *)&cmdDesc,
+                        .payload = resp,
+                        .payloadLen = configLen};
+  if (sendCommand(&msg, &res) != 0) {
+    return -1;
+  }
 
   // also copy over configuration options
-  configOpt = cmdDesc.ConfigOpt;
+  *configOpt = cmdDesc.ConfigOpt;
+
+  if (cmdDesc.Status != 0) {
+    printf("[WIFI] getNetConfig(): non zero status %d \n", cmdDesc.Status);
+  }
 
   // return status
   return cmdDesc.Status;
 }
 
-void getDeviceInfo(SlVersionFull *ver) {
+int16_t getDeviceInfo(SlVersionFull *ver) {
   _DeviceSetGet_t cmdDesc;
   cmdDesc.DeviceSetId = SL_DEVICE_GENERAL_CONFIGURATION;
   cmdDesc.Option = SL_DEVICE_GENERAL_VERSION;
@@ -165,10 +192,44 @@ void getDeviceInfo(SlVersionFull *ver) {
       .data = buf,
   };
 
-  sendCommand(&msg, &res);
+  if (sendCommand(&msg, &res) != 0) {
+    return -1;
+  }
 
   // copy version info back to user
   memcpy(ver, &buf[8], sizeof(SlVersionFull));
+
+  return 0;
+}
+
+int16_t setWifiConfig(uint8_t configId, uint8_t configOpt, uint8_t configLen,
+                      uint8_t *resp) {
+  _WlanCfgSetGet_t data;
+  data.ConfigId = configId;
+  data.ConfigLen = configLen;
+  data.ConfigOpt = configOpt;
+  // create msg struct
+  DriverMessage msg = {.Opcode = SL_OPCODE_WLAN_CFG_SET,
+                       .RespOpcode = SL_OPCODE_WLAN_CFG_SET_RESPONSE,
+                       .cmdDesc = (uint8_t *)&data,
+                       .cmdDescLen = 8,
+                       .payloadLen = (configLen + 3) & (~3),
+                       .payload = resp};
+
+  // prepare response
+  DriverResponse res = {
+      .resLen = 8,
+      .data = (uint8_t *)&data, // reuse cmdDesc
+  };
+
+  sendCommand(&msg, &res);
+
+  if (((_BasicResponse_t *)res.data)->status != 0) {
+    printf("[WIFI] setWifiConfig(): non zero status %d",
+           ((_BasicResponse_t *)res.data)->status);
+  }
+
+  return ((_BasicResponse_t *)res.data)->status;
 }
 
 int16_t setWifiMode(uint8_t mode) {
@@ -206,8 +267,6 @@ typedef union {
   _SlProfileParams_t Cmd;
   _BasicResponse_t Rsp;
 } _SlProfileAddMsg_u;
-
-
 
 typedef struct {
   _WlanConnectEapCommand_t Args;
@@ -280,7 +339,7 @@ int16_t connect(WifiProfileConfig *conf) {
 int16_t profileAdd(WifiProfileConfig *conf) {
   _SlProfileAddMsg_u Msg = {0};
 
-  Msg.Cmd.Args.Common.Priority = (uint8_t)6;
+  Msg.Cmd.Args.Common.Priority = (uint8_t)conf->common.Priority;
   Msg.Cmd.Args.Common.SsidLen = (uint8_t)conf->common.SsidLen;
   if (NULL != conf->ssid) {
     /* copy SSID */
@@ -314,7 +373,7 @@ int16_t profileAdd(WifiProfileConfig *conf) {
   // prepare response
   // uint16_t resLen = sizeof(SlVersionFull) + msg.cmdDescLen;
   DriverResponse res = {
-      .resLen = 8,             // sizeof(_BasicResponse_t),
+      .resLen = sizeof(_BasicResponse_t),
       .data = (uint8_t *)&Msg, // reuse cmdDesc
   };
   printf("profileAdd() sending msg: size=%i \n", msg.cmdDescLen);
@@ -339,7 +398,6 @@ int16_t getProfile(int16_t index) {
                        .payloadLen = 0};
 
   // prepare response
-  // uint16_t resLen = sizeof(SlVersionFull) + msg.cmdDescLen;
   DriverResponse res = {
       .resLen = sizeof(_SlProfileParams_t),
       .data = (uint8_t *)&data, // reuse cmdDesc
@@ -350,11 +408,13 @@ int16_t getProfile(int16_t index) {
   if (data.Rsp.Args.Common.SsidLen != 0) {
     printf("[WIFI] read profile SsidLen=%i SSID=\"",
            data.Rsp.Args.Common.SsidLen);
-    printChars((char *)EAP_PROFILE_SSID_STRING(&data), data.Rsp.Args.Common.SsidLen);
+    printChars((char *)EAP_PROFILE_SSID_STRING(&data),
+               data.Rsp.Args.Common.SsidLen);
     printf("\"\n");
   } else {
     printf("[WIFI] read profile SsidLen=0");
   }
+  printf("[WIFI] Profile Info: secType=%d", data.Rsp.Args.Common.SecType);
 
   return 0;
 }
@@ -399,7 +459,9 @@ int16_t disconnectFromWifi(void) {
   };
 
   sendCommand(&msg, &res);
-
+  if (resp.status == 0) {
+    state.con.connected = false;
+  }
   return resp.status == 0;
 }
 
@@ -428,15 +490,14 @@ int16_t setWifiPolicy(uint8_t type, uint8_t policy) {
 
 int16_t openSocket(int16_t domain, int16_t type, int16_t protocol) {
   _SocketCommand_t data = {0};
-  data.Domain = domain;
-  data.Type = type;
-  data.Protocol = protocol;
+  data.Domain = (uint8_t)domain;
+  data.Type = (uint8_t)type;
+  data.Protocol = (uint8_t)protocol;
   // create msg struct
   DriverMessage msg = {.Opcode = SL_OPCODE_SOCKET_SOCKET,
                        .RespOpcode = SL_OPCODE_SOCKET_SOCKETRESPONSE,
                        .cmdDesc = (uint8_t *)&data,
-                       .cmdDescLen = 8,
-                       .payloadLen = 0};
+                       .cmdDescLen = sizeof(_SocketCommand_t)};
 
   // prepare response
   // uint16_t resLen = sizeof(SlVersionFull) + msg.cmdDescLen;
@@ -445,9 +506,57 @@ int16_t openSocket(int16_t domain, int16_t type, int16_t protocol) {
       .data = (uint8_t *)&data, // reuse cmdDesc
   };
 
+  if (sendCommand(&msg, &res) != 0) {
+    printf("[WIFI] failed to open socket \n");
+    return -1;
+  }
+  printf("[WIFI] openSocket SOCK=%d StatusOrLen=%d \n",
+         ((_SocketResponse_t *)&data)->sd,
+         ((_SocketResponse_t *)&data)->statusOrLen);
+  return (_i16)(((_SocketResponse_t *)&data)->sd);
+}
+
+/**
+ * @brief compute maximal payload len for a provided socket type
+ *
+ * @param type
+ * @return int16_t
+ */
+uint16_t maxPayloadLen(uint8_t socType) {
+  switch (socType) {
+  case 0:
+    return 1400;
+  default:
+    return 1476;
+  }
+}
+
+typedef union {
+  _sendRecvCommand_t Cmd;
+  _SocketResponse_t Rsp;
+} _SlRecvMsg_u;
+
+int16_t recvRawTraceiverData(int16_t sock, void *buf, int16_t bufLen,
+                             int16_t options) {
+
+  _SlRecvMsg_u Msg;
+  Msg.Cmd.sd = sock;
+  Msg.Cmd.StatusOrLen = bufLen;
+  Msg.Cmd.FamilyAndFlags = options & 0x0F;
+  DriverMessage msg = {.Opcode = SL_OPCODE_SOCKET_RECV,
+                       .RespOpcode = SL_OPCODE_SOCKET_RECVASYNCRESPONSE,
+                       .cmdDesc = (uint8_t *)&Msg.Cmd,
+                       .cmdDescLen = sizeof(_sendRecvCommand_t)};
+
+  DriverResponse res = {.resLen = sizeof(_SocketResponse_t),
+                        .data = (uint8_t *)&Msg.Rsp, // reuse cmdDesc
+                        .payloadLen = bufLen,
+                        .payload = buf};
+
+  // send socket data
   sendCommand(&msg, &res);
-  // printf("[WIFI] openSocket %d", (_SocketResponse_t)data))
-  return ((_SocketResponse_t *)&data)->sd;
+
+  return Msg.Rsp.statusOrLen;
 }
 
 /**
@@ -460,11 +569,129 @@ int16_t openSocket(int16_t domain, int16_t type, int16_t protocol) {
  * @param len
  * @return int16_t
  */
-int16_t sendRawTraceiverData(int16_t sock, uint8_t *buf, int16_t len) {
-  (void)sock;
-  (void)buf;
-  (void)len;
+int16_t sendRawTraceiverData(int16_t sock, uint8_t *buf, int16_t len,
+                             int16_t options) {
+  if ((sock & 0xF0) == 0x80) {
+    puts("sending via true raw socket");
+  }
+
+  // TODO: add sync for multiple sockets for now only one socket is supported
+  // check mutex
+  _sendRecvCommand_t data = {0};
+  // FIXME: for now only support raw sockets
+  uint16_t packetLen = maxPayloadLen(0);
+  uint32_t optionsCopy = options;
+
+  // fast ceil without math library
+  uint8_t chunksCount = (len + packetLen - 1) / packetLen;
+  printf("Split into %d chunks \n", chunksCount);
+  // create request response objects
+  DriverMessage msg = {
+      .Opcode = SL_OPCODE_SOCKET_SEND,
+      // .RespOpcode = SL_OPCODE_DEVICE_DEVICEASYNCDUMMY,
+      .cmdDesc = (uint8_t *)&data,
+      .cmdDescLen = sizeof(_sendRecvCommand_t),
+      .payloadHeader = (uint8_t *)(&optionsCopy),
+      .payloadHeaderLen = 4,
+  };
+
+  // prepare response
+  // uint16_t resLen = sizeof(SlVersionFull) + msg.cmdDescLen;
+  // DriverResponse res = {
+  //     .resLen = 0,
+  //     .data = NULL, // reuse cmdDesc
+  // };
+  uint16_t bufOffset = 0;
+
+  for (int i = 0; i < chunksCount; i++) {
+    data.sd = (uint8_t)sock;
+    data.FamilyAndFlags |= options & 0x0F;
+
+    msg.payload = (uint8_t *)(buf + bufOffset);
+
+    // compute package lan either max package len or remainder
+    msg.payloadLen = len - bufOffset > packetLen ? packetLen : len - bufOffset;
+    data.StatusOrLen = msg.payloadLen;
+
+    // increment buffer offset
+    bufOffset += packetLen;
+
+    printf("Sending package len=%d chunk %d of %d\n", msg.payloadLen, i,
+           chunksCount);
+
+    // send socket data
+    sendCommand(&msg, NULL);
+
+    // TODO: check response codes
+  }
+
   return 0;
 }
-// int16_t wlanConnect(char *SSID, char *BSSID, uint8_t securityType, )
-// int16_t setWlanConfig()
+
+/* Set command */
+typedef union _SlRxFilterSetMsg_u {
+  _WlanRxFilterSetCommand_t Cmd;
+  _WlanRxFilterSetCommandReponse_t Rsp;
+} _SlRxFilterSetMsg_u;
+
+int16_t setWlanFilter(uint8_t filterOptions, uint8_t *inBuf, uint16_t bufLen) {
+  _SlRxFilterSetMsg_u data = {0};
+  data.Cmd.RxFilterOperation = filterOptions;
+  data.Cmd.InputBufferLength = bufLen;
+  // create msg struct
+  DriverMessage msg = {.Opcode = SL_OPCODE_WLAN_WLANRXFILTERSETCOMMAND,
+                       .RespOpcode = SL_OPCODE_WLAN_WLANRXFILTERSETRESPONSE,
+                       .cmdDesc = (uint8_t *)&data,
+                       .cmdDescLen = sizeof(_WlanRxFilterSetCommand_t),
+                       .payload = inBuf,
+                       .payloadLen = bufLen};
+
+  // prepare response
+  // uint16_t resLen = sizeof(SlVersionFull) + msg.cmdDescLen;
+  DriverResponse res = {
+      .resLen = sizeof(_WlanRxFilterSetCommandReponse_t),
+      .data = (uint8_t *)&data, // reuse cmdDesc
+  };
+
+  if (sendCommand(&msg, &res) != 0) {
+    printf("[WIFI] failed to set Rx Filter \n");
+    return -1;
+  }
+  printf("!! setWlanFilter: %d \n", data.Rsp.Status);
+  return data.Rsp.Status;
+}
+
+typedef union {
+  _setSockOptCommand_t Cmd;
+  _SocketResponse_t Rsp;
+} _SlSetSockOptMsg_u;
+
+int16_t setSocketOptions(uint16_t sock, uint16_t level, uint16_t optionName,
+                         void *optionVal, uint8_t optionLen) {
+  _SlSetSockOptMsg_u data = {0};
+  data.Cmd.sd = (uint8_t)sock;
+  data.Cmd.level = (uint8_t)level;
+  data.Cmd.optionLen = (uint8_t)optionLen;
+  data.Cmd.optionName = (uint8_t)optionName;
+  // create msg struct
+  DriverMessage msg = {.Opcode = SL_OPCODE_SOCKET_SETSOCKOPT,
+                       .RespOpcode = SL_OPCODE_SOCKET_SETSOCKOPTRESPONSE,
+                       .cmdDesc = (uint8_t *)&data,
+                       .cmdDescLen = sizeof(_WlanRxFilterSetCommand_t),
+                       .payload = optionVal,
+                       .payloadLen = optionLen};
+
+  // prepare response
+  // uint16_t resLen = sizeof(SlVersionFull) + msg.cmdDescLen;
+  DriverResponse res = {
+      .resLen = sizeof(_SocketResponse_t),
+      .data = (uint8_t *)&data, // reuse cmdDesc
+  };
+
+  if (sendCommand(&msg, &res) != 0) {
+    printf("[WIFI] failed to set Rx Filter \n");
+    return -1;
+  }
+  printf("!! setSocketOptions: %d \n", data.Rsp.statusOrLen);
+  return data.Rsp.statusOrLen;
+}
