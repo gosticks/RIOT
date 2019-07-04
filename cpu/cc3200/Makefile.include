@@ -2,6 +2,7 @@ export CPU_ARCH = cortex-m4
 
 # required by the TI driverlib 
 export CFLAGS += -DPART_CC3200
+export CFLAGS += -DTARGET_IS_CC3200
 export CFLAGS += -DSL_PLATFORM_MULTI_THREADED
 
 # include TI driverlib (only temporal till port is ready)

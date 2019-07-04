@@ -62,6 +62,9 @@ extern "C" {
 // } gpio_mode_t;
 // /** @} */
 
+#define GPIO_DIR_MODE_IN        0x00000000  // Pin is a GPIO input
+#define GPIO_DIR_MODE_OUT       0x00000001  // Pin is a GPIO output
+
 #define CPUID_ADDR (void *)(0xe000ed00)
 /**
  * @brief   Length of the CPU_ID in octets

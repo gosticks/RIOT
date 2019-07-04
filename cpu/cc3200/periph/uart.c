@@ -27,8 +27,13 @@
 #include "sched.h"
 #include "thread.h"
 #include "xtimer.h"
+#include "vendor/rom.h"
 
 #define UNUSED(x) ((x) = (x))
+
+// FIXME: don't know why this is needed (ROM_IntEnable should be already present)
+#define ROM_IntEnable                                                         \
+        ((void (*)(unsigned long ulInterrupt))ROM_INTERRUPTTABLE[0])
 
 /**
  * Define the nominal CPU core clock
@@ -136,7 +141,7 @@ int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg) {
     MAP_UARTIntEnable(UARTA0_BASE, UART_INT_RX | UART_INT_OE | UART_INT_BE |
                                        UART_INT_PE | UART_INT_FE);
     MAP_IntPrioritySet(INT_UARTA0, UART_IRQ_PRIO);
-    MAP_IntEnable(INT_UARTA0);
+    ROM_IntEnable(INT_UARTA0);
     break;
 #endif
 #if UART_1_EN
@@ -144,7 +149,7 @@ int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg) {
     MAP_UARTIntEnable(UARTA1_BASE, UART_INT_RX | UART_INT_OE | UART_INT_BE |
                                        UART_INT_PE | UART_INT_FE);
     MAP_IntPrioritySet(INT_UARTA1, UART_IRQ_PRIO);
-    MAP_IntEnable(INT_UARTA1);
+    ROM_IntEnable(INT_UARTA1);
     break;
 #endif
   }

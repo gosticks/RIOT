@@ -68,13 +68,13 @@ void spi_init_pins(spi_t bus) {
     MAP_PRCMPeripheralClkEnable(PRCM_GSPI, PRCM_RUN_MODE_CLK);
     // TODO: use gpio_init for this when PIN_MODE mapping is done
     // GSPI_CLK
-    MAP_PinTypeSPI(spi_config[bus].pins.sck, PIN_MODE_7);
+    ROM_PinTypeSPI(spi_config[bus].pins.sck, PIN_MODE_7);
     // set MISO pin
-    MAP_PinTypeSPI(spi_config[bus].pins.miso, PIN_MODE_7);
+    ROM_PinTypeSPI(spi_config[bus].pins.miso, PIN_MODE_7);
     // set GSPI_MOSI
-    MAP_PinTypeSPI(spi_config[bus].pins.mosi, PIN_MODE_7);
+    ROM_PinTypeSPI(spi_config[bus].pins.mosi, PIN_MODE_7);
     // set GSPI_CS
-    MAP_PinTypeSPI(spi_config[bus].pins.cs, PIN_MODE_7);
+    ROM_PinTypeSPI(spi_config[bus].pins.cs, PIN_MODE_7);
 
     break;
   case CC3100_SPI:
@@ -90,15 +90,15 @@ void enable_peiph_clk(unsigned long bus, unsigned long mask) {
 
 void spi_reset(spi_t bus) {
   // Disable Chip Select
-  MAP_SPICSDisable(spi_config[bus].base_addr);
+  ROM_SPICSDisable(spi_config[bus].base_addr);
 
   // Disable SPI Channel
-  MAP_SPIDisable(spi_config[bus].base_addr);
+  ROM_SPIDisable(spi_config[bus].base_addr);
 
   // reset SPI
-  MAP_SPIReset(spi_config[bus].base_addr);
+  ROM_SPIReset(spi_config[bus].base_addr);
 
-  MAP_SPIEnable(spi_config[bus].base_addr);
+  ROM_SPIEnable(spi_config[bus].base_addr);
 }
 
 void spi_init(spi_t bus) {
@@ -134,14 +134,14 @@ int spi_acquire(spi_t bus, spi_cs_t cs, spi_mode_t mode, spi_clk_t clk) {
   switch (bus) {
   case EXTERNAL_SPI:
     MAP_SPIConfigSetExpClk(spi_config[bus].base_addr,
-                           MAP_PRCMPeripheralClockGet(PRCM_GSPI), clk,
+                           ROM_PRCMPeripheralClockGet(PRCM_GSPI), clk,
                            SPI_MODE_MASTER, mode,
                            (SPI_HW_CTRL_CS | SPI_4PIN_MODE | SPI_TURBO_OFF |
                             SPI_CS_ACTIVELOW | SPI_WL_8));
     break;
   case CC3100_SPI:
     MAP_SPIConfigSetExpClk(spi_config[bus].base_addr,
-                           MAP_PRCMPeripheralClockGet(PRCM_LSPI), clk,
+                           ROM_PRCMPeripheralClockGet(PRCM_LSPI), clk,
                            SPI_MODE_MASTER, mode,
                            (SPI_SW_CTRL_CS | SPI_4PIN_MODE | SPI_TURBO_OFF |
                             SPI_CS_ACTIVEHIGH | SPI_WL_32));
@@ -167,9 +167,9 @@ void spi_transfer_bytes(spi_t bus, spi_cs_t cs, bool cont, const void *out,
     return;
   }
 
-  // MAP_SPITransfer(GSPI_BASE, (unsigned char*)out, (unsigned char*)in, length,
+  // ROM_SPITransfer(GSPI_BASE, (unsigned char*)out, (unsigned char*)in, length,
   // SPI_CS_ENABLE|SPI_CS_DISABLE);
-  MAP_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
+  ROM_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
                   (unsigned char *)in, len, 0);
 }
 
@@ -177,12 +177,12 @@ uint8_t spi_transfer_reg(spi_t bus, spi_cs_t cs, uint8_t reg, uint8_t out) {
   if (bus >= SPI_NUMOF) {
     return -1;
   }
-  // MAP_SPITransfer(GSPI_BASE, &reg, 0, 1, SPI_CS_ENABLE);
-  MAP_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
+  // ROM_SPITransfer(GSPI_BASE, &reg, 0, 1, SPI_CS_ENABLE);
+  ROM_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
 
-  // if (MAP_SPITransfer(GSPI_BASE, (unsigned char*)&out, (unsigned char*)in, 1,
+  // if (ROM_SPITransfer(GSPI_BASE, (unsigned char*)&out, (unsigned char*)in, 1,
   // SPI_CS_DISABLE)) {
-  if (MAP_SPITransfer(spi_config[bus].base_addr, (unsigned char *)&out, 0, 1,
+  if (ROM_SPITransfer(spi_config[bus].base_addr, (unsigned char *)&out, 0, 1,
                       0)) {
     return -1;
   }
@@ -194,11 +194,11 @@ void spi_transfer_regs(spi_t bus, spi_cs_t cs, uint8_t reg, const void *out,
   if (bus >= SPI_NUMOF) {
     return;
   }
-  // MAP_SPITransfer(GSPI_BASE, &reg, 0, 1, SPI_CS_ENABLE);
-  MAP_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
-  // if(MAP_SPITransfer(GSPI_BASE, (unsigned char*)&out, (unsigned char*)in,
+  // ROM_SPITransfer(GSPI_BASE, &reg, 0, 1, SPI_CS_ENABLE);
+  ROM_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
+  // if(ROM_SPITransfer(GSPI_BASE, (unsigned char*)&out, (unsigned char*)in,
   // length, SPI_CS_DISABLE)) {
-  if (MAP_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
+  if (ROM_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
                       (unsigned char *)in, len, 0)) {
     return;
   }

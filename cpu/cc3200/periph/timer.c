@@ -26,13 +26,72 @@
 #include "periph_conf.h"
 #include "xtimer.h"
 
-#include "driverlib/prcm.h"
-#include "driverlib/timer.h"
-
+#include "driverlib/rom.h"
 #include "vendor/hw_ints.h"
 #include "vendor/hw_memmap.h"
 #include "vendor/hw_timer.h"
 #include "vendor/hw_types.h"
+
+//*****************************************************************************
+//
+// Values that can be passed to TimerIntEnable, TimerIntDisable, and
+// TimerIntClear as the ulIntFlags parameter, and returned from TimerIntStatus.
+//
+//*****************************************************************************
+#define TIMER_TIMB_DMA          0x00002000  // TimerB DMA Done interrupt
+#define TIMER_TIMB_MATCH        0x00000800  // TimerB match interrupt
+#define TIMER_CAPB_EVENT        0x00000400  // CaptureB event interrupt
+#define TIMER_CAPB_MATCH        0x00000200  // CaptureB match interrupt
+#define TIMER_TIMB_TIMEOUT      0x00000100  // TimerB time out interrupt
+#define TIMER_TIMA_DMA          0x00000020  // TimerA DMA Done interrupt
+#define TIMER_TIMA_MATCH        0x00000010  // TimerA match interrupt
+#define TIMER_CAPA_EVENT        0x00000004  // CaptureA event interrupt
+#define TIMER_CAPA_MATCH        0x00000002  // CaptureA match interrupt
+#define TIMER_TIMA_TIMEOUT      0x00000001  // TimerA time out interrupt
+
+//*****************************************************************************
+//
+// Values that can be passed to most of the timer APIs as the ulTimer
+// parameter.
+//
+//*****************************************************************************
+#define TIMER_A                 0x000000ff  // Timer A
+#define TIMER_B                 0x0000ff00  // Timer B
+#define TIMER_BOTH              0x0000ffff  // Timer Both
+
+
+//*****************************************************************************
+//
+// Values that can be passed to TimerConfigure as the ulConfig parameter.
+//
+//*****************************************************************************
+
+#define TIMER_CFG_ONE_SHOT       0x00000021  // Full-width one-shot timer
+#define TIMER_CFG_ONE_SHOT_UP    0x00000031  // Full-width one-shot up-count
+                                             // timer
+#define TIMER_CFG_PERIODIC       0x00000022  // Full-width periodic timer
+#define TIMER_CFG_PERIODIC_UP    0x00000032  // Full-width periodic up-count
+                                             // timer
+#define TIMER_CFG_SPLIT_PAIR     0x04000000  // Two half-width timers
+
+#define TIMER_CFG_A_ONE_SHOT     0x00000021  // Timer A one-shot timer
+#define TIMER_CFG_A_ONE_SHOT_UP  0x00000031  // Timer A one-shot up-count timer
+#define TIMER_CFG_A_PERIODIC     0x00000022  // Timer A periodic timer
+#define TIMER_CFG_A_PERIODIC_UP  0x00000032  // Timer A periodic up-count timer
+#define TIMER_CFG_A_CAP_COUNT    0x00000003  // Timer A event counter
+#define TIMER_CFG_A_CAP_COUNT_UP 0x00000013  // Timer A event up-counter
+#define TIMER_CFG_A_CAP_TIME     0x00000007  // Timer A event timer
+#define TIMER_CFG_A_CAP_TIME_UP  0x00000017  // Timer A event up-count timer
+#define TIMER_CFG_A_PWM          0x0000000A  // Timer A PWM output
+#define TIMER_CFG_B_ONE_SHOT     0x00002100  // Timer B one-shot timer
+#define TIMER_CFG_B_ONE_SHOT_UP  0x00003100  // Timer B one-shot up-count timer
+#define TIMER_CFG_B_PERIODIC     0x00002200  // Timer B periodic timer
+#define TIMER_CFG_B_PERIODIC_UP  0x00003200  // Timer B periodic up-count timer
+#define TIMER_CFG_B_CAP_COUNT    0x00000300  // Timer B event counter
+#define TIMER_CFG_B_CAP_COUNT_UP 0x00001300  // Timer B event up-counter
+#define TIMER_CFG_B_CAP_TIME     0x00000700  // Timer B event timer
+#define TIMER_CFG_B_CAP_TIME_UP  0x00001700  // Timer B event up-count timer
+#define TIMER_CFG_B_PWM          0x00000A00  // Timer B PWM output
 
 #define MAX_TIMERS TIMER_NUMOF
 
@@ -135,6 +194,10 @@ static inline void *getHandler(tim_t dev) {
   };
 }
 
+#define ROM_TimerConfigure                                                    \
+        ((void (*)(unsigned long ulBase,                                      \
+                   unsigned long ulConfig))ROM_TIMERTABLE[2])
+
 int timer_init(tim_t dev, unsigned long freq, timer_cb_t cb, void *arg) {
 
   // check if timer id is valid
@@ -155,16 +218,16 @@ int timer_init(tim_t dev, unsigned long freq, timer_cb_t cb, void *arg) {
   MAP_PRCMPeripheralReset(timer_config[dev].periph_id);
 
   // setup timer
-  MAP_TimerConfigure(base, TIMER_CFG_PERIODIC_UP);
-  MAP_TimerControlStall(base, TIMER_A, true);
+  ROM_TimerConfigure(base, TIMER_CFG_PERIODIC_UP);
+  ROM_TimerControlStall(base, TIMER_A, true);
 
   // register & setup intrrupt handling
-  MAP_TimerIntRegister(base, TIMER_A, timerHandler);
+  ROM_TimerIntRegister(base, TIMER_A, timerHandler);
   timer_config[dev].ctx.cb = cb;
-  MAP_IntPrioritySet(timer_config[dev].irqn, INT_PRIORITY_LVL_2);
+  ROM_IntPrioritySet(timer_config[dev].irqn, INT_PRIORITY_LVL_2);
 
   // enable the timer
-  MAP_TimerEnable(base, TIMER_A);
+  ROM_TimerEnable(base, TIMER_A);
 
   return 0;
 }
@@ -173,7 +236,7 @@ int set_absolute(tim_t dev, int channel, unsigned long long value) {
   if (dev >= MAX_TIMERS) {
     return -1;
   }
-  MAP_TimerMatchSet((uint32_t)timer_config[dev].timer, TIMER_A, value);
+  ROM_TimerMatchSet((uint32_t)timer_config[dev].timer, TIMER_A, value);
   timer_config[dev].timer->intr_mask |= TIMER_TIMA_MATCH;
   return 0;
 }
@@ -190,7 +253,7 @@ int timer_clear(tim_t dev, int channel) {
   if (dev >= MAX_TIMERS) {
     return -1;
   }
-  MAP_TimerIntClear((uint32_t)timer_config[dev].timer, TIMER_TIMA_MATCH);
+  ROM_TimerIntClear((uint32_t)timer_config[dev].timer, TIMER_TIMA_MATCH);
   // disable the match timer
   timer_config[dev].timer->intr_mask &= ~(TIMER_TIMA_MATCH);
   return 0;
@@ -207,28 +270,28 @@ void timer_start(tim_t dev) {
   if (dev >= MAX_TIMERS) {
     return;
   }
-  MAP_TimerEnable((uint32_t)timer_config[dev].timer, TIMER_A);
+  ROM_TimerEnable((uint32_t)timer_config[dev].timer, TIMER_A);
 }
 
 void timer_stop(tim_t dev) {
   if (dev >= MAX_TIMERS) {
     return;
   }
-  MAP_TimerDisable((uint32_t)timer_config[dev].timer, TIMER_A);
+  ROM_TimerDisable((uint32_t)timer_config[dev].timer, TIMER_A);
 }
 
 void timer_irq_enable(tim_t dev) {
   if (dev >= MAX_TIMERS) {
     return;
   }
-  MAP_TimerIntEnable((uint32_t)timer_config[dev].timer, TIMER_TIMA_MATCH);
+  ROM_TimerIntEnable((uint32_t)timer_config[dev].timer, TIMER_TIMA_MATCH);
 }
 
 void timer_irq_disable(tim_t dev) {
   if (dev >= MAX_TIMERS) {
     return;
   }
-  MAP_TimerIntDisable((uint32_t)timer_config[dev].timer, TIMER_TIMA_MATCH);
+  ROM_TimerIntDisable((uint32_t)timer_config[dev].timer, TIMER_TIMA_MATCH);
 }
 
 void timer_reset(tim_t dev) {

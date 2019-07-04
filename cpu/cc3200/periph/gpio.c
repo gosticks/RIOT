@@ -220,14 +220,14 @@ int gpio_init(gpio_t dev, gpio_mode_t mode)
 	DEBUG("GPIO %"PRIu32", PORT: %u, PIN: %u\n", (uint32_t)dev, port, pin);
 
 	// set pin to GPIO mode (does not to be done for only gpio pins but has no consequence and ist faster the reading first)
-	MAP_PinTypeGPIO(mcuPinNum, PIN_MODE_0, false);
+	ROM_PinTypeGPIO(mcuPinNum, PIN_MODE_0, false);
 
 
 	// set gpio direction IN/OUT
 	if (mode == GPIO_OUT) {
-		MAP_GPIODirModeSet(portAddr, ipin, GPIO_DIR_MODE_OUT);
+		ROM_GPIODirModeSet(portAddr, ipin, GPIO_DIR_MODE_OUT);
 	} else {
-		MAP_GPIODirModeSet(portAddr, ipin, GPIO_DIR_MODE_IN);
+		ROM_GPIODirModeSet(portAddr, ipin, GPIO_DIR_MODE_IN);
 	}
 
 	switch (mode) {
@@ -279,7 +279,7 @@ void handle_isr(uint32_t portAddr)
 {
 	uint32_t state = HWREG(portAddr + GPIO_O_GPIO_MIS);
 
-	MAP_GPIOIntClear(portAddr, state);
+	ROM_GPIOIntClear(portAddr, state);
 
 	for (int i = 0; i < 8; i++)
 	{
@@ -300,7 +300,7 @@ void gpio_irq_enable(gpio_t dev)
 {
 	// uint8_t bit = _gpio_pin_to_imux(dev);
 	// uint8_t portAddr = _gpio_pin_to_port(dev);
-	// MAP_GPIOIntEnable(portAddr, bit);
+	// ROM_GPIOIntEnable(portAddr, bit);
 }
 
 /**
@@ -311,7 +311,7 @@ void gpio_irq_disable(gpio_t dev)
 {
 	// uint8_t bit = _gpio_pin_to_imux(dev);
 	// uint8_t portAddr = _gpio_pin_to_port(dev);
-	// MAP_GPIOIntDisable(portAddr, bit);
+	// ROM_GPIOIntDisable(portAddr, bit);
 }
 
 int gpio_init_int(gpio_t dev, gpio_mode_t mode, gpio_flank_t flank,
@@ -333,49 +333,49 @@ int gpio_init_int(gpio_t dev, gpio_mode_t mode, gpio_flank_t flank,
 	isr_ctx[portNum][pinNum].cb = cb;
 	isr_ctx[portNum][pinNum].arg = arg;
 
-	MAP_IntMasterDisable();
-	MAP_GPIOIntClear(portBase, bit);
+	ROM_IntMasterDisable();
+	ROM_GPIOIntClear(portBase, bit);
 
 	// configure active flanks
 	switch (flank) {
 		case GPIO_LOW:
-			MAP_GPIOIntTypeSet(portAddr, bit, 0x00000002);
+			ROM_GPIOIntTypeSet(portAddr, bit, 0x00000002);
 			break;
 		case GPIO_BOTH:
-			MAP_GPIOIntTypeSet(portAddr, bit, 0x00000001);
+			ROM_GPIOIntTypeSet(portAddr, bit, 0x00000001);
 			break;
 		case GPIO_RISING:
-			MAP_GPIOIntTypeSet(portAddr, bit, 0x00000004);
+			ROM_GPIOIntTypeSet(portAddr, bit, 0x00000004);
 			break;
 		case GPIO_FALLING:
-			MAP_GPIOIntTypeSet(portAddr, bit, 0x00000000);
+			ROM_GPIOIntTypeSet(portAddr, bit, 0x00000000);
 			break;
 		default:
 			return -1;
 	}
 
-	MAP_GPIOIntEnable(portAddr, bit);
+	ROM_GPIOIntEnable(portAddr, bit);
 
 	switch (portBase) {
 	case GPIOA0_BASE:
-		MAP_GPIOIntRegister(portBase, isr_gpio_a0);
-		MAP_IntEnable(INT_GPIOA0);
+		ROM_GPIOIntRegister(portBase, isr_gpio_a0);
+		ROM_IntEnable(INT_GPIOA0);
 		break;
 	case GPIOA1_BASE:
-		MAP_GPIOIntRegister(portBase, isr_gpio_a1);
-		MAP_IntEnable(INT_GPIOA1);
+		ROM_GPIOIntRegister(portBase, isr_gpio_a1);
+		ROM_IntEnable(INT_GPIOA1);
 		break;
 	case GPIOA2_BASE:
-		MAP_GPIOIntRegister(portBase, isr_gpio_a2);
-		MAP_IntEnable(INT_GPIOA2);
+		ROM_GPIOIntRegister(portBase, isr_gpio_a2);
+		ROM_IntEnable(INT_GPIOA2);
 		break;
 	case GPIOA3_BASE:
-		MAP_GPIOIntRegister(portBase, isr_gpio_a3);
-		MAP_IntEnable(INT_GPIOA3);
+		ROM_GPIOIntRegister(portBase, isr_gpio_a3);
+		ROM_IntEnable(INT_GPIOA3);
 		break;
 	}
 
-	MAP_IntMasterEnable();
+	ROM_IntMasterEnable();
 
 	return 0;
 }

@@ -25,18 +25,18 @@
 
 #include <stdint.h>
 
+#include "driverlib/rom.h"
 // TODO: remove includes after modules ported to RIOT
 #include "vendor/hw_ints.h"
 #include "vendor/hw_memmap.h"
 #include "vendor/hw_types.h"
+#include "vendor/rom_map.h"
 
-#include "driverlib/rom.h"
-#include "driverlib/rom_map.h"
-#include "driverlib/interrupt.h"
+// #include "driverlib/interrupt.h"
 #include "driverlib/uart.h"
 #include "driverlib/pin.h"
-#include "driverlib/gpio.h"
-#include "driverlib/spi.h"
+// #include "driverlib/gpio.h"
+// #include "driverlib/spi.h"
 #include "driverlib/prcm.h"
 
 #ifdef __cplusplus
