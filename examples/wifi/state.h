@@ -15,7 +15,8 @@ typedef struct DriverRequest
 {
     uint8_t ID;
     uint16_t Opcode;
-    
+
+
     // response description buffers
     uint8_t *DescBuffer;
     uint16_t DescBufferSize;
@@ -35,6 +36,7 @@ typedef struct DriverState
     volatile struct DriverRequest *requestQueue[REQUEST_QUEUE_SIZE];
     // connection info
     struct ConnectionInfo con;
+    unsigned char macAddr[6];
 } DriverState;
 
 extern DriverState state;

@@ -8,6 +8,8 @@
 #define WIFI_SPI_BASE 0x44022000
 #define WIFI_REG (cc3200_spi_t *)WIFI_SPI_BASE
 
+#define SL_MAC_ADDRESS_GET 2
+
 // ROM VERSIONS
 #define ROM_VER_PG1_21 1
 #define ROM_VER_PG1_32 2
@@ -65,6 +67,38 @@
     (MATCH_WITH_SEQ_NUM(pBuf, TxSeqNum))) ||                                   \
    (!(*((uint32_t *)pBuf) & N2H_SYNC_PATTERN_SEQ_NUM_EXISTS) &&                \
     (MATCH_WOUT_SEQ_NUM(pBuf))))
+
+
+#define SL_RAW_RF_TX_PARAMS_CHANNEL_SHIFT (0)
+#define SL_RAW_RF_TX_PARAMS_RATE_SHIFT (6)
+#define SL_RAW_RF_TX_PARAMS_POWER_SHIFT (11)
+#define SL_RAW_RF_TX_PARAMS_PREAMBLE_SHIFT (15)
+
+#define SL_RAW_RF_TX_PARAMS(chan, rate, power, preamble)                       \
+  ((chan << SL_RAW_RF_TX_PARAMS_CHANNEL_SHIFT) |                               \
+   (rate << SL_RAW_RF_TX_PARAMS_RATE_SHIFT) |                                  \
+   (power << SL_RAW_RF_TX_PARAMS_POWER_SHIFT) |                                \
+   (preamble << SL_RAW_RF_TX_PARAMS_PREAMBLE_SHIFT))
+
+#define SL_POLICY_CONNECTION (0x10)
+#define SL_POLICY_SCAN (0x20)
+#define SL_POLICY_PM (0x30)
+#define SL_POLICY_P2P (0x40)
+
+#define VAL_2_MASK(position, value) ((1 & (value)) << (position))
+#define MASK_2_VAL(position, mask) (((1 << position) & (mask)) >> (position))
+
+#define SL_CONNECTION_POLICY(Auto, Fast, Open, anyP2P, autoSmartConfig)        \
+  (VAL_2_MASK(0, Auto) | VAL_2_MASK(1, Fast) | VAL_2_MASK(2, Open) |           \
+   VAL_2_MASK(3, anyP2P) | VAL_2_MASK(4, autoSmartConfig))
+#define SL_SCAN_POLICY_EN(policy) (MASK_2_VAL(0, policy))
+#define SL_SCAN_POLICY(Enable) (VAL_2_MASK(0, Enable))
+
+#define SL_NORMAL_POLICY (0)
+#define SL_LOW_LATENCY_POLICY (1)
+#define SL_LOW_POWER_POLICY (2)
+#define SL_ALWAYS_ON_POLICY (3)
+#define SL_LONG_SLEEP_INTERVAL_POLICY (4)
 
 typedef void (*SimpleLinkEventHandler)(void);
 #define SimpleLinkEventHandler SimpleLinkEventHandler

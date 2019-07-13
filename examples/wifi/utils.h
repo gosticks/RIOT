@@ -4,6 +4,7 @@
 #include "proto.h"
 
 #define alignDataLen(len) ((len) + 3) & (~3)
+extern void __attribute__((naked)) delay(unsigned long count);
 void printChars(char *str, uint16_t len);
 void maskWifiInterrupt(void);
 void unmaskWifiInterrupt(void);

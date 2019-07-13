@@ -47,7 +47,7 @@ void led_init(void) {
   //
   // Enable Peripheral Clocks
   //
-  MAP_PRCMPeripheralClkEnable(PRCM_GPIOA1, PRCM_RUN_MODE_CLK);
+  ARCM->GPIO_A.clk_gating |= PRCM_RUN_MODE_CLK;
 
   // enable leads and clear them
   gpio_init(LED_RED, GPIO_OUT);

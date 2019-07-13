@@ -99,7 +99,7 @@ uint8_t sendCommand(DriverMessage *msg, DriverResponse *res) {
   int i;
   // TODO: may lead to problems in multithreaded envs
   for (i = CMD_TIMEOUT; req.Waiting && (i > 0); i--) {
-    UtilsDelay(80 * 50000 / 3);
+    delay(80 * 50000 / 3);
   }
 
   if (i == 0 && req.Waiting) {
