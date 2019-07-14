@@ -27,21 +27,24 @@
 #include "sched.h"
 #include "thread.h"
 #include "xtimer.h"
+
 #include "vendor/rom.h"
 
 #define UNUSED(x) ((x) = (x))
 
-// FIXME: don't know why this is needed (ROM_IntEnable should be already present)
-#define ROM_IntEnable                                                         \
-        ((void (*)(unsigned long ulInterrupt))ROM_INTERRUPTTABLE[0])
+// FIXME: don't know why this is needed (ROM_IntEnable should be already
+// present)
+#define ROM_IntEnable                                                          \
+  ((void (*)(unsigned long ulInterrupt))ROM_INTERRUPTTABLE[0])
 
 /**
  * Define the nominal CPU core clock
  */
 #define F_CPU 80000000
 
-#define SEC_TO_TICKS(sec) 80000000 * sec /**< Convert seconds to  clock ticks  \
-                                          */
+#define SEC_TO_TICKS(sec)                                                      \
+  80000000 * sec /**< Convert seconds to  clock ticks                          \
+                  */
 #define MSEC_TO_TICKS(msec)                                                    \
   80000 * msec /**< Convert millisecs to  clock ticks */
 #define USEC_TO_TICKS(usec)                                                    \
@@ -55,17 +58,17 @@
 /**
  * @brief Each UART device has to store two callbacks.
  */
-typedef struct {
-  uart_rx_cb_t rx_cb;
-  void *arg;
-} uart_conf_t;
+// typedef struct {
+//   uart_rx_cb_t rx_cb;
+//   void *arg;
+// } uart_conf_t;
 
 int uart_init_blocking(uart_t uart, uint32_t baudrate);
 
 /**
  * @brief Allocate memory to store the callback functions.
  */
-static uart_conf_t uart_config[UART_NUMOF];
+static uart_isr_ctx_t uart_config[UART_NUMOF];
 
 /*---------------------------------------------------------------------------*/
 static void reset(unsigned long uart_base) {
@@ -158,17 +161,18 @@ int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg) {
 }
 
 int uart_init_blocking(uart_t uart, uint32_t baudrate) {
-
+  cc3200_periph_regs_t *periphReg;
   switch (uart) {
 #if UART_0_EN
   case UART_0:
-
-    MAP_PRCMPeripheralReset(PRCM_UARTA0);
+    init_periph_clk(&ARCM->UART_A0);
+    ARCM->UART_A0.clk_gating |= PRCM_RUN_MODE_CLK;
+    // MAP_PRCMPeripheralReset(PRCM_UARTA0);
 
     //
     // Enable Peripheral Clocks
     //
-    MAP_PRCMPeripheralClkEnable(PRCM_UARTA0, PRCM_RUN_MODE_CLK);
+    // MAP_PRCMPeripheralClkEnable(PRCM_UARTA0, PRCM_RUN_MODE_CLK);
 
     //
     // Configure PIN_55 for UART0 UART0_TX
@@ -190,11 +194,12 @@ int uart_init_blocking(uart_t uart, uint32_t baudrate) {
 #endif
 #if UART_1_EN
   case UART_1:
-
+    init_periph_clk(&ARCM->UART_A1);
+    ARCM->UART_A1.clk_gating |= PRCM_RUN_MODE_CLK;
     //
     // Enable Peripheral Clocks
     //
-    PRCMPeripheralClkEnable(PRCM_UARTA1, PRCM_RUN_MODE_CLK);
+    // PRCMPeripheralClkEnable(PRCM_UARTA1, PRCM_RUN_MODE_CLK);
 
     //
     // Configure PIN_07 for UART1 UART1_TX
