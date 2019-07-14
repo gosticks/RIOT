@@ -13,6 +13,8 @@
 #include "cc3200.h"
 #include "cc3200_spi.h"
 #include "cc3200_gpio.h"
+#include "cc3200_prcm.h"
+#include "cc3200_uart.h"
 
 #ifdef __cplusplus
 extern "C"
