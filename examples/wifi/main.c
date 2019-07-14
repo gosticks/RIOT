@@ -66,10 +66,6 @@
 #define SL_ALWAYS_ON_POLICY (3)
 #define SL_LONG_SLEEP_INTERVAL_POLICY (4)
 
-#define LED_RED GPIO_PIN(1, 9)
-#define LED_ORANGE GPIO_PIN(1, 10)
-#define LED_GREEN GPIO_PIN(1, 11)
-
 const WifiCtrlCmd DeviceGetCommand = {
     0x8466, // SL_OPCODE_DEVICE_DEVICEGET,
     sizeof(_DeviceSetGet_t),
@@ -262,10 +258,11 @@ int main(void) {
   setWlanFilter(1, filterConfig, sizeof(_WlanRxFilterOperationCommandBuff_t));
 
   while (1) {
-    // sendRawTraceiverData(sock0, (uint8_t *)RawData_Ping, sizeof(RawData_Ping), SL_RAW_RF_TX_PARAMS(13, 1, 0, 0));
+    // sendRawTraceiverData(sock0, (uint8_t *)RawData_Ping,
+    // sizeof(RawData_Ping), SL_RAW_RF_TX_PARAMS(13, 1, 0, 0));
     recvRawTraceiverData(sock0, acBuffer, 1470, 0);
     // read the buffer
-    for(int i = 0; i < 50; i++) {
+    for (int i = 0; i < 50; i++) {
       printf("%02x ", acBuffer[i]);
     }
     puts("");
