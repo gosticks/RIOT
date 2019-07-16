@@ -38,6 +38,8 @@
 #define CC3100_SPI 1U
 #define XTAL_CLK 40000000
 #define PIN_MODE_SPI 0x00000007
+#define SPI_CS_ENABLE 0x00000001
+#define SPI_CS_DISABLE 0x00000002
 
 /**
  * @brief   Allocate one lock per SPI device
@@ -183,22 +185,25 @@ int spi_acquire(spi_t bus, spi_cs_t cs, spi_mode_t mode, spi_clk_t clk)
 	// lock bus
 	mutex_lock(&locks[bus]);
 
+	// enable cs pin
 	if (cs == GPIO_UNDEF) {
 		spi(bus)->ch0_conf &= ~MCSPI_CH0CONF_FORCE;
 	} else {
 		spi(bus)->ch0_conf |= MCSPI_CH0CONF_FORCE;
 	}
-
+	// configure
 	_spi_config(bus, mode, clk);
 
+	// enable spi
 	spi(bus)->ch0_ctrl |= MCSPI_CH0CTRL_EN;
-	return 0;
+	return SPI_OK;
 }
 
 void spi_release(spi_t bus)
 {
-	if (bus >= SPI_NUMOF)
+	if (bus >= SPI_NUMOF) {
 		return;
+	}
 	mutex_unlock(&locks[bus]);
 
 	// disable spi
@@ -208,12 +213,15 @@ void spi_release(spi_t bus)
 uint8_t spi_transfer_byte(spi_t bus, spi_cs_t cs, bool cont, uint8_t out)
 {
 	spi_transfer_bytes(bus, cs, cont, &out, NULL, 1);
-	return 0;
+	return SPI_OK;
 }
 
 void spi_transfer_bytes(spi_t bus, spi_cs_t cs, bool cont, const void *out,
 			void *in, size_t len)
 {
+	// TODO: handle cs and cont for
+	(void)cont;
+
 	// disable or enable cs
 	if (cs == GPIO_UNDEF) {
 		spi(bus)->ch0_conf &= ~MCSPI_CH0CONF_FORCE;
@@ -234,10 +242,11 @@ uint8_t spi_transfer_reg(spi_t bus, spi_cs_t cs, uint8_t reg, uint8_t out)
 	if (bus >= SPI_NUMOF) {
 		return -1;
 	}
-	ROM_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
+	ROM_SPITransfer(spi_config[bus].base_addr, &reg, NULL, 1,
+			cs != SPI_CS_UNDEF);
 
 	if (ROM_SPITransfer(spi_config[bus].base_addr, (unsigned char *)&out, 0,
-			    1, 0)) {
+			    1, cs != SPI_CS_UNDEF)) {
 		return -1;
 	}
 	return 1; // success transfer
@@ -249,9 +258,10 @@ void spi_transfer_regs(spi_t bus, spi_cs_t cs, uint8_t reg, const void *out,
 	if (bus >= SPI_NUMOF) {
 		return;
 	}
-	ROM_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
+	ROM_SPITransfer(spi_config[bus].base_addr, &reg, NULL, 1,
+			cs != SPI_CS_UNDEF);
 	if (ROM_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
-			    (unsigned char *)in, len, 0)) {
+			    (unsigned char *)in, len, cs != SPI_CS_UNDEF)) {
 		return;
 	}
 }

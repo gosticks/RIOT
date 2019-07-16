@@ -177,8 +177,6 @@ void gpio_pin_mode_set(gpio_t dev, uint32_t mode)
 
 int gpio_init(gpio_t dev, gpio_mode_t mode)
 {
-	uint8_t pin = gpio_pin_num(dev);
-
 	// get pin mask
 	uint8_t ipin = gpio_pin_mask(dev);
 

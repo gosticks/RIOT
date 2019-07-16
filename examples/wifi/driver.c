@@ -18,11 +18,11 @@
 // static volatile cc3200_spi_t *wifiReg = (struct cc3200_spi_t *)WIFI_SPI_BASE;
 const _SlSyncPattern_t g_H2NSyncPattern = CPU_TO_NET_CHIP_SYNC_PATTERN;
 const _SlSyncPattern_t g_H2NCnysPattern = CPU_TO_NET_CHIP_CNYS_PATTERN;
-static uint32_t	TxSeqNum		= 0;
+static uint32_t TxSeqNum		= 0;
 
 int read(uint8_t *in, int len)
 {
-	spi_transfer_bytes(1, 1, 0, NULL, in, len);
+	spi_transfer_bytes(1, 1, false, NULL, in, len);
 	// TODO: cleanup manual read func
 	// unsigned long ulCnt;
 	// unsigned long *ulDataIn;
@@ -55,7 +55,7 @@ int read(uint8_t *in, int len)
 
 int send(uint8_t *out, int len)
 {
-	spi_transfer_bytes(1, 1, 0, out, NULL, len);
+	spi_transfer_bytes(1, 1, false, out, NULL, len);
 	// TODO: cleanup manual write call
 	// unsigned long ulCnt;
 	// unsigned long *ulDataOut;
@@ -123,8 +123,8 @@ int _readCmdHeader(uint8_t *buf, uint8_t *align)
 	}
 	TxSeqNum++;
 
-	/*  7. Here we've read Generic Header (4 bytes). Read the Resp Specific header
-   * (4 more bytes). */
+	/*  7. Here we've read Generic Header (4 bytes). Read the Resp Specific
+	 * header (4 more bytes). */
 	read(&buf[4], 4);
 	*align = (uint8_t)((SyncCnt > 0) ? (4 - SyncCnt) : 0);
 	return 0;
@@ -164,7 +164,7 @@ void sendPowerOnPreamble(void)
 	sl_stop_ind       = HWREG(0x4402E16C);
 
 	if ((nwp_lpds_wake_cfg != 0x20) && /* Check for NWP POR condition */
-	    !(sl_stop_ind & 0x2)) /* Check if sl_stop was executed */
+	    !(sl_stop_ind & 0x2))	  /* Check if sl_stop was executed */
 	{
 		/* Loop until APPs->NWP interrupt is cleared or timeout */
 		while (retry_count < 1000) {
