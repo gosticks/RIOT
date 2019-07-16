@@ -33,6 +33,9 @@
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
+
+#define LOAD_VALUE (0xffff)
+
 /**
  * @brief Timer state memory
  */
@@ -139,6 +142,7 @@ int timer_init(tim_t dev, unsigned long freq, timer_cb_t cb, void *arg)
 		return -1;
 	}
 	void *timerHandler = get_irq_handler(dev);
+	uint32_t prescaler = 0;
 	if (timerHandler == NULL) {
 		return -1;
 	}
@@ -155,9 +159,26 @@ int timer_init(tim_t dev, unsigned long freq, timer_cb_t cb, void *arg)
 	ROM_TimerConfigure((uint32_t)timer(dev), TIMER_CFG_A_PERIODIC_UP);
 	ROM_TimerControlStall((uint32_t)timer(dev), TIMER_A, true);
 
+	// set prescale
+	// only 16bit timer mode is currently supported
+	// if 32bit mode is enabled freq can only be the same as system freq
+	prescaler = CLOCK_CORECLOCK;
+	prescaler += freq / 2;
+	prescaler /= freq;
+	if (prescaler > 0) {
+		prescaler--;
+	}
+	if (prescaler > 255) {
+		prescaler = 255;
+	}
+
+	timer(dev)->prescale_a      = prescaler;
+	timer(dev)->interval_load_a = LOAD_VALUE;
+
 	// register & setup intrrupt handling
 	ROM_TimerIntRegister((uint32_t)timer(dev), TIMER_A, timerHandler);
-	isr_ctx[dev].cb = cb;
+	isr_ctx[dev].cb  = cb;
+	isr_ctx[dev].arg = arg;
 
 	// timer A irqn (B now supported) is always two apart
 	ROM_IntPrioritySet(INT_TIMERA0A + dev * 2, INT_PRIORITY_LVL_2);
@@ -170,7 +191,8 @@ int timer_init(tim_t dev, unsigned long freq, timer_cb_t cb, void *arg)
 
 int set_absolute(tim_t dev, int channel, unsigned long long value)
 {
-	if (dev >= MAX_TIMERS) {
+	// currently only one channel supported
+	if (dev >= MAX_TIMERS || channel > 0) {
 		return -1;
 	}
 	ROM_TimerMatchSet((uint32_t)timer(dev), TIMER_A, value);
@@ -190,7 +212,8 @@ int timer_set_absolute(tim_t dev, int channel, unsigned int value)
 
 int timer_clear(tim_t dev, int channel)
 {
-	if (dev >= MAX_TIMERS) {
+	// currently only one channel supported
+	if (dev >= MAX_TIMERS || channel > 0) {
 		return -1;
 	}
 	ROM_TimerIntClear((uint32_t)timer(dev), TIMER_TIMA_MATCH);
