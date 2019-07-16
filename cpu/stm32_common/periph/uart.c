@@ -181,7 +181,11 @@ int uart_mode(uart_t uart, uart_data_bits_t data_bits, uart_parity_t parity,
                 isr_ctx[uart].data_mask = 0x7F;
                 break;
             case UART_DATA_BITS_8:
+#ifdef USART_CR1_M0
+                data_bits = USART_CR1_M0;
+#else
                 data_bits = USART_CR1_M;
+#endif
                 break;
             default:
                 return UART_NOMODE;
@@ -196,7 +200,6 @@ int uart_mode(uart_t uart, uart_data_bits_t data_bits, uart_parity_t parity,
         return UART_INTERR;
     }
     dev(uart)->CR1 &= ~(USART_CR1_UE | USART_CR1_TE);
-    dev(uart)->CR1 &= ~USART_CR1_M1;
 #endif
 
     dev(uart)->CR2 &= ~USART_CR2_STOP;
@@ -306,12 +309,12 @@ void uart_write(uart_t uart, const uint8_t *data, size_t len)
             dev(uart)->CR3 |= USART_CR3_DMAT;
             dma_transfer(uart_config[uart].dma, uart_config[uart].dma_chan, data,
                          (void *)&dev(uart)->TDR_REG, len, DMA_MEM_TO_PERIPH, DMA_INC_SRC_ADDR);
-            dma_release(uart_config[uart].dma);
 
             /* make sure the function is synchronous by waiting for the transfer to
              * finish */
             wait_for_tx_complete(uart);
             dev(uart)->CR3 &= ~USART_CR3_DMAT;
+            dma_release(uart_config[uart].dma);
         }
         return;
     }
@@ -332,6 +335,16 @@ void uart_poweron(uart_t uart)
         pm_block(STM32_PM_STOP);
     }
 #endif
+#ifdef MODULE_STM32_PERIPH_UART_HW_FC
+    if (uart_config[uart].cts_pin != GPIO_UNDEF) {
+        gpio_init(uart_config[uart].rts_pin, GPIO_OUT);
+#ifdef CPU_FAM_STM32F1
+        gpio_init_af(uart_config[uart].rts_pin, GPIO_AF_OUT_PP);
+#else
+        gpio_init_af(uart_config[uart].rts_pin, uart_config[uart].rts_af);
+#endif
+    }
+#endif
     periph_clk_en(uart_config[uart].bus, uart_config[uart].rcc_mask);
 }
 
@@ -340,6 +353,12 @@ void uart_poweroff(uart_t uart)
     assert(uart < UART_NUMOF);
 
     periph_clk_dis(uart_config[uart].bus, uart_config[uart].rcc_mask);
+#ifdef MODULE_STM32_PERIPH_UART_HW_FC
+    if (uart_config[uart].cts_pin != GPIO_UNDEF) {
+        gpio_init(uart_config[uart].rts_pin, GPIO_OUT);
+        gpio_set(uart_config[uart].rts_pin);
+    }
+#endif
 #ifdef STM32_PM_STOP
     if (isr_ctx[uart].rx_cb) {
         pm_unblock(STM32_PM_STOP);

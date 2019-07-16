@@ -1,7 +1,9 @@
 include ../Makefile.tests_common
 
 BOARD_BLACKLIST :=  arduino-duemilanove \
+                    arduino-leonardo \
                     arduino-mega2560 \
+                    arduino-nano \
                     arduino-uno \
                     chronos \
                     jiminy-mega256rfr2 \

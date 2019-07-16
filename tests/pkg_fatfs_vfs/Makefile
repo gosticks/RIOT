@@ -25,16 +25,17 @@ else
   USEMODULE += mtd_sdcard
 endif
 
-BOARD_INSUFFICIENT_MEMORY := arduino-duemilanove arduino-uno \
-                             msb-430 msb-430h nucleo-f031k6 telosb \
+BOARD_INSUFFICIENT_MEMORY := arduino-duemilanove arduino-leonardo arduino-nano \
+                             arduino-uno msb-430 msb-430h nucleo-f031k6 telosb \
                              wsn430-v1_3b wsn430-v1_4 z1
 
 # this list is composed of boards with sufficient memory and support spi/gpio + native
-BOARD_WHITELIST := airfy-beacon arduino-due arduino-duemilanove arduino-mega2560 \
-                   arduino-mkr1000 arduino-mkrzero arduino-uno arduino-zero avsextrem \
+BOARD_WHITELIST := airfy-beacon arduino-due arduino-duemilanove \
+                   arduino-leonardo arduino-mega2560 arduino-mkr1000 \
+                   arduino-mkrzero arduino-uno arduino-zero avsextrem \
                    b-l072z-lrwan1 b-l475e-iot01a bluepill cc2538dk ek-lm4f120xl \
-                   feather-m0 fox frdm-k22f frdm-k64f ikea-tradfri iotlab-a8-m3 \
-                   iotlab-m3 limifrog-v1 maple-mini msba2 msbiot \
+                   feather-m0 fox frdm-k22f frdm-k64f ikea-tradfri i-nucleo-lrwan1 \
+                   iotlab-a8-m3 iotlab-m3 limifrog-v1 maple-mini msba2 msbiot \
                    mulle nrf52840dk nrf52dk nrf6310 nucleo-f207zg nucleo-f303ze \
                    nucleo-f412zg nucleo-f413zh nucleo-f429zi nucleo-f446ze \
                    nucleo-f042k6 nucleo-f303k8 nucleo-l031k6 \
@@ -45,7 +46,8 @@ BOARD_WHITELIST := airfy-beacon arduino-due arduino-duemilanove arduino-mega2560
                    remote-revb samd21-xpro saml21-xpro samr21-xpro \
                    sensebox_samd21 sltb001a sodaq-autonomo sodaq-explorer \
                    spark-core stm32f0discovery stm32f3discovery \
-                   stm32f4discovery udoo waspmote-pro yunjia-nrf51822 native
+                   stm32f4discovery stm32l0538-disco udoo waspmote-pro \
+                   yunjia-nrf51822 native
 
 TEST_DEPS += image
 

@@ -71,13 +71,17 @@ static int _send(netdev_t *netdev, const iolist_t *iolist)
 
     /* load packet data into FIFO */
     for (const iolist_t *iol = iolist; iol; iol = iol->iol_next) {
-        /* current packet data + FCS too long */
-        if ((len + iol->iol_len + 2) > IEEE802154_FRAME_LEN_MAX) {
-            DEBUG("[mrf24j40] error: packet too large (%u byte) to be send\n",
-                  (unsigned)len + 2);
-            return -EOVERFLOW;
+        /* Check if there is data to copy, prevents assertion failure in the
+         * SPI peripheral if there is no data to copy */
+        if (iol->iol_len) {
+            /* current packet data + FCS too long */
+            if ((len + iol->iol_len + 2) > IEEE802154_FRAME_LEN_MAX) {
+                DEBUG("[mrf24j40] error: packet too large (%u byte) to be send\n",
+                      (unsigned)len + 2);
+                return -EOVERFLOW;
+            }
+            len = mrf24j40_tx_load(dev, iol->iol_base, iol->iol_len, len);
         }
-        len = mrf24j40_tx_load(dev, iol->iol_base, iol->iol_len, len);
         /* only on first iteration: */
         if (iol == iolist) {
             dev->header_len = len;
@@ -275,13 +279,23 @@ static int _get(netdev_t *netdev, netopt_t opt, void *val, size_t max_len)
             break;
 
         case NETOPT_IS_CHANNEL_CLR:
-            if (mrf24j40_cca(dev)) {
+            if (mrf24j40_cca(dev, NULL)) {
                 *((netopt_enable_t *)val) = NETOPT_ENABLE;
             }
             else {
                 *((netopt_enable_t *)val) = NETOPT_DISABLE;
             }
             res = sizeof(netopt_enable_t);
+            break;
+
+        case NETOPT_LAST_ED_LEVEL:
+            if (max_len < sizeof(int8_t)) {
+                res = -EOVERFLOW;
+            }
+            else {
+                mrf24j40_cca(dev, (int8_t *)val);
+                res = sizeof(int8_t);
+            }
             break;
 
         case NETOPT_CSMA_RETRIES:
@@ -303,6 +317,7 @@ static int _get(netdev_t *netdev, netopt_t opt, void *val, size_t max_len)
                 res = sizeof(int8_t);
             }
             break;
+
         case NETOPT_TX_RETRIES_NEEDED:
             if (max_len < sizeof(uint8_t)) {
                 res = -EOVERFLOW;

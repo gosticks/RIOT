@@ -38,10 +38,14 @@
 #define ENABLE_DEBUG 0
 #include "debug.h"
 
+/*
+ * @brief: struct for mutex lock with timeout
+ * xtimer_mutex_lock_timeout() uses it to give information to the timer callback function
+ */
 typedef struct {
     mutex_t *mutex;
     thread_t *thread;
-    int timeout;
+    volatile int timeout;
 } mutex_thread_t;
 
 static void _callback_unlock_mutex(void* arg)
@@ -255,7 +259,7 @@ int xtimer_mutex_lock_timeout(mutex_t *mutex, uint64_t timeout)
     if (timeout != 0) {
         t.callback = _mutex_timeout;
         t.arg = (void *)((mutex_thread_t *)&mt);
-        _xtimer_set64(&t, timeout, timeout >> 32);
+        xtimer_set64(&t, timeout);
     }
 
     mutex_lock(mutex);

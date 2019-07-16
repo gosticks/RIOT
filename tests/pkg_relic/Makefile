@@ -2,10 +2,13 @@ include ../Makefile.tests_common
 
 # The following boards are known to fail or have not been tested.
 BOARD_BLACKLIST :=  arduino-duemilanove \
+                    arduino-leonardo \
                     arduino-mega2560 \
+                    arduino-nano \
                     arduino-uno \
                     chronos \
                     f4vi1 \
+                    hifive1 \
                     jiminy-mega256rfr2 \
                     mega-xplained \
                     msb-430 \
@@ -21,11 +24,13 @@ BOARD_BLACKLIST :=  arduino-duemilanove \
                     z1 \
                     #
 
-BOARD_INSUFFICIENT_MEMORY :=    nucleo-f030r8 \
+BOARD_INSUFFICIENT_MEMORY :=    i-nucleo-lrwan1 \
+                                nucleo-f030r8 \
                                 nucleo-f031k6 \
                                 nucleo-f042k6 \
                                 nucleo-l031k6 \
                                 nucleo-l053r8 \
+                                stm32l0538-disco \
                                 #
 
 CFLAGS += -DTHREAD_STACKSIZE_MAIN=\(5*THREAD_STACKSIZE_DEFAULT\)

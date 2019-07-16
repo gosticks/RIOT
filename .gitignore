@@ -65,3 +65,6 @@ results/
 # macOS specific files
 .DS_STORE
 boards/**/*.log
+
+# mypy artifacts
+.mypy_cache/

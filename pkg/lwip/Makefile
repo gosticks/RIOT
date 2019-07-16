@@ -1,5 +1,5 @@
 PKG_NAME=lwip
-PKG_URL=git://git.savannah.nongnu.org/lwip.git
+PKG_URL=https://git.savannah.nongnu.org/git/lwip.git
 # lwIP v2.1.2
 PKG_VERSION=159e31b689577dbf69cf0683bbaffbd71fa5ee10
 PKG_LICENSE=BSD-3-Clause
@@ -15,7 +15,7 @@ CFLAGS += -Wno-address
 
 make_module = "$(MAKE)" -f $(LWIP_MODULE_MAKEFILE) MODULE=$(1) -C $(2)
 
-all: git-download lwip
+all: lwip
 
 lwip: $(LWIP_USEMODULE)
 	$(call make_module,$@,$(PKG_BUILDDIR))

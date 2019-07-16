@@ -90,6 +90,8 @@
 # the target when starting a debug session. 'reset halt' can also be used
 # depending on the type of target.
 : ${OPENOCD_DBG_START_CMD:=-c 'halt'}
+# command used to reset the board
+: ${OPENOCD_CMD_RESET_RUN:="-c 'reset run'"}
 # This is an optional offset to the base address that can be used to flash an
 # image in a different location than it is linked at. This feature can be useful
 # when flashing images for firmware swapping/remapping boot loaders.
@@ -182,17 +184,49 @@ _split_banks() {
     }'
 }
 
-# Outputs bank info on different lines without the '{}'
-_flash_list() {
+_flash_list_raw() {
     # Openocd output for 'flash list' is
     # ....
     # {name nrf51 base 0 size 0 bus_width 1 chip_width 1} {name nrf51 base 268439552 size 0 bus_width 1 chip_width 1}
     # ....
+    #
+    # Before printing the flash list, try to init and probe the board
+    # to get the actual address.
+    # Some openocd configuration put an address of 0 and rely on probing to
+    # find the real flash address like 0x08000000
+    #
+    # If it does not work, fallback to only query the configured value
+    #
+    # Probing can fail when the board is in a non flashable state or
+    # maybe probing would need a different init procedure.
+    # At least, currently fallback to returning the configured value
+
+    # Probe the real value
+    sh -c "${OPENOCD} \
+            ${OPENOCD_ADAPTER_INIT} \
+            -f '${OPENOCD_CONFIG}' \
+            -c 'init' \
+            -c 'flash probe 0' \
+            -c 'flash list' \
+            -c 'shutdown'" 2>&1 && return
+
+    # Fallback to return the value stored in openocd
+    echo "WARN: Failed to probe board flash." >&2
+    echo "WARN: Falling back to using the openocd configuration value." >&2
     sh -c "${OPENOCD} \
             ${OPENOCD_ADAPTER_INIT} \
             -f '${OPENOCD_CONFIG}' \
             -c 'flash list' \
-            -c 'shutdown'" 2>&1 | _split_banks
+            -c 'shutdown'" 2>&1
+}
+
+# Outputs bank info on different lines without the '{}'
+_flash_list() {
+    # ....
+    # name nrf51 base 0 size 0 bus_width 1 chip_width 1
+    # name nrf51 base 268439552 size 0 bus_width 1 chip_width 1
+    # ....
+    _flash_list_raw | _split_banks
 }
 
 # Print flash address for 'bank_num' num defaults to 1
@@ -323,7 +357,7 @@ do_reset() {
             -c 'telnet_port 0' \
             -c 'gdb_port 0' \
             -c 'init' \
-            -c 'reset run' \
+            ${OPENOCD_CMD_RESET_RUN} \
             -c 'shutdown'"
 }
 

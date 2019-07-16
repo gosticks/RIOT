@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016-18 Kaspar Schleiser <kaspar@schleiser.de>
+ *               2018 Inria
  *               2018 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser
@@ -144,6 +145,21 @@ int coap_parse(coap_pkt_t *pkt, uint8_t *buf, size_t len)
           pkt->payload_len, option_count, hdr->code);
 
     return 0;
+}
+
+int coap_match_path(const coap_resource_t *resource, uint8_t *uri)
+{
+    assert(resource && uri);
+    int res;
+
+    if (resource->methods & COAP_MATCH_SUBTREE) {
+        int len = strlen(resource->path);
+        res = strncmp((char *)uri, resource->path, len);
+    }
+    else {
+        res = strcmp((char *)uri, resource->path);
+    }
+    return res;
 }
 
 uint8_t *coap_find_option(const coap_pkt_t *pkt, unsigned opt_num)
@@ -323,7 +339,7 @@ ssize_t coap_handle_req(coap_pkt_t *pkt, uint8_t *resp_buf, unsigned resp_buf_le
             continue;
         }
 
-        int res = strcmp((char *)uri, resource->path);
+        int res = coap_match_path(resource, uri);
         if (res > 0) {
             continue;
         }
@@ -551,7 +567,7 @@ static unsigned _put_delta_optlen(uint8_t *buf, unsigned offset, unsigned shift,
     return offset;
 }
 
-size_t coap_put_option(uint8_t *buf, uint16_t lastonum, uint16_t onum, uint8_t *odata, size_t olen)
+size_t coap_put_option(uint8_t *buf, uint16_t lastonum, uint16_t onum, const uint8_t *odata, size_t olen)
 {
     assert(lastonum <= onum);
 
@@ -625,30 +641,33 @@ size_t coap_put_option_block1(uint8_t *buf, uint16_t lastonum, unsigned blknum, 
     return coap_put_option_block(buf, lastonum, blknum, szx, more, COAP_OPT_BLOCK1);
 }
 
-int coap_get_block1(coap_pkt_t *pkt, coap_block1_t *block1)
+int coap_get_block(coap_pkt_t *pkt, coap_block1_t *block, uint16_t blkopt)
 {
     uint32_t blknum;
     unsigned szx;
 
-    block1->more = coap_get_blockopt(pkt, COAP_OPT_BLOCK1, &blknum, &szx);
-    if (block1->more >= 0) {
-        block1->offset = blknum << (szx + 4);
+    block->more = coap_get_blockopt(pkt, blkopt, &blknum, &szx);
+    if (block->more >= 0) {
+        block->offset = blknum << (szx + 4);
     }
     else {
-        block1->offset = 0;
+        block->offset = 0;
     }
 
-    block1->blknum = blknum;
-    block1->szx = szx;
+    block->blknum = blknum;
+    block->szx = szx;
 
-    return (block1->more >= 0);
+    return (block->more >= 0);
 }
 
-int coap_get_block2(coap_pkt_t *pkt, coap_block1_t *block2)
+int coap_get_block1(coap_pkt_t *pkt, coap_block1_t *block)
 {
-    block2->more = coap_get_blockopt(pkt, COAP_OPT_BLOCK2, &block2->blknum,
-                                     &block2->szx);
-    return (block2->more >= 0);
+    return coap_get_block(pkt, block, COAP_OPT_BLOCK1);
+}
+
+int coap_get_block2(coap_pkt_t *pkt, coap_block1_t *block)
+{
+    return coap_get_block(pkt, block, COAP_OPT_BLOCK2);
 }
 
 size_t coap_put_block1_ok(uint8_t *pkt_pos, coap_block1_t *block1, uint16_t lastonum)
@@ -713,10 +732,12 @@ size_t coap_opt_put_string(uint8_t *buf, uint16_t lastonum, uint16_t optnum,
 }
 
 /* Common functionality for addition of an option */
-static ssize_t _add_opt_pkt(coap_pkt_t *pkt, uint16_t optnum, uint8_t *val,
+static ssize_t _add_opt_pkt(coap_pkt_t *pkt, uint16_t optnum, const uint8_t *val,
                             size_t val_len)
 {
-    assert(pkt->options_len < NANOCOAP_NOPTS_MAX);
+    if (pkt->options_len >= NANOCOAP_NOPTS_MAX) {
+        return -ENOSPC;
+    }
 
     uint16_t lastonum = (pkt->options_len)
             ? pkt->options[pkt->options_len - 1].opt_num : 0;
@@ -727,7 +748,9 @@ static ssize_t _add_opt_pkt(coap_pkt_t *pkt, uint16_t optnum, uint8_t *val,
     size_t optlen = _put_delta_optlen(dummy, 1, 4, optnum - lastonum);
     optlen += _put_delta_optlen(dummy, 0, 0, val_len);
     optlen += val_len;
-    assert(pkt->payload_len >= optlen);
+    if (pkt->payload_len < optlen) {
+        return -ENOSPC;
+    }
 
     coap_put_option(pkt->payload, lastonum, optnum, val, val_len);
 
@@ -772,14 +795,20 @@ ssize_t coap_opt_add_string(coap_pkt_t *pkt, uint16_t optnum, const char *string
         /* Creates empty option if part for Uri-Path or Uri-Location contains
          * only a trailing slash, except for root path ("/"). */
         if (part_len || ((separator == '/') && write_len)) {
-            if (pkt->options_len == NANOCOAP_NOPTS_MAX) {
-                return -ENOSPC;
+            ssize_t optlen = _add_opt_pkt(pkt, optnum, part_start, part_len);
+            if (optlen < 0) {
+                return optlen;
             }
-            write_len += _add_opt_pkt(pkt, optnum, part_start, part_len);
+            write_len += optlen;
         }
     }
 
     return write_len;
+}
+
+ssize_t coap_opt_add_opaque(coap_pkt_t *pkt, uint16_t optnum, const uint8_t *val, size_t val_len)
+{
+    return _add_opt_pkt(pkt, optnum, val, val_len);
 }
 
 ssize_t coap_opt_add_uint(coap_pkt_t *pkt, uint16_t optnum, uint32_t value)
@@ -792,7 +821,9 @@ ssize_t coap_opt_add_uint(coap_pkt_t *pkt, uint16_t optnum, uint32_t value)
 ssize_t coap_opt_finish(coap_pkt_t *pkt, uint16_t flags)
 {
     if (flags & COAP_OPT_FINISH_PAYLOAD) {
-        assert(pkt->payload_len > 1);
+        if (!pkt->payload_len) {
+            return -ENOSPC;
+        }
 
         *pkt->payload++ = 0xFF;
         pkt->payload_len--;

@@ -1,3 +1,7 @@
+ifneq (,$(filter ad7746,$(USEMODULE)))
+  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/ad7746/include
+endif
+
 ifneq (,$(filter adcxx1c,$(USEMODULE)))
   USEMODULE_INCLUDES += $(RIOTBASE)/drivers/adcxx1c/include
 endif
@@ -60,6 +64,14 @@ endif
 
 ifneq (,$(filter ds1307,$(USEMODULE)))
   USEMODULE_INCLUDES += $(RIOTBASE)/drivers/ds1307/include
+endif
+
+ifneq (,$(filter ds3234,$(USEMODULE)))
+  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/ds3234/include
+endif
+
+ifneq (,$(filter ds75lx,$(USEMODULE)))
+  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/ds75lx/include
 endif
 
 ifneq (,$(filter dsp0401,$(USEMODULE)))
@@ -150,8 +162,8 @@ ifneq (,$(filter lpd8808,$(USEMODULE)))
   USEMODULE_INCLUDES += $(RIOTBASE)/drivers/lpd8808/include
 endif
 
-ifneq (,$(filter lps331ap,$(USEMODULE)))
-  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/lps331ap/include
+ifneq (,$(filter lpsxxx,$(USEMODULE)))
+  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/lpsxxx/include
 endif
 
 ifneq (,$(filter lsm303dlhc,$(USEMODULE)))

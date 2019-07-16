@@ -1,5 +1,7 @@
 /*
- * Copyright (C) 2016-17 Kaspar Schleiser <kaspar@schleiser.de>
+ * Copyright (C) 2016-18 Kaspar Schleiser <kaspar@schleiser.de>
+ *               2018 Inria
+ *               2018 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -133,8 +135,7 @@ int nanocoap_server(sock_udp_ep_t *local, uint8_t *buf, size_t bufsize)
     while (1) {
         res = sock_udp_recv(&sock, buf, bufsize, -1, &remote);
         if (res < 0) {
-            DEBUG("error receiving UDP packet\n");
-            return -1;
+            DEBUG("error receiving UDP packet %d\n", (int)res);
         }
         else if (res > 0) {
             coap_pkt_t pkt;

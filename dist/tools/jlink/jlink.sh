@@ -13,6 +13,7 @@
 # JLINK_IF:         Interface used by JLink, default: "SWD"
 # JLINK_SPEED:      Interface clock speed to use (in kHz), default "2000"
 # FLASH_ADDR:       Starting address of the target's flash memory, default: "0"
+# IMAGE_OFFSET:     Offset from the targets flash memory, for flashing the image
 # JLINK_PRE_FLASH:  Additional JLink commands to execute before flashing
 # JLINK_POST_FLASH: Additional JLink commands to execute after flashing
 #
@@ -50,6 +51,9 @@
 #
 #
 # @author       Hauke Peteresen <hauke.petersen@fu-berlin.de>
+
+# Set IMAGE_OFFSET to zero by default.
+: ${IMAGE_OFFSET:=0}
 
 # default GDB port
 _GDB_PORT=3333
@@ -157,13 +161,16 @@ do_flash() {
     if [ ! -z "${JLINK_PRE_FLASH}" ]; then
         printf "${JLINK_PRE_FLASH}\n" >> ${BINDIR}/burn.seg
     fi
-    echo "loadbin ${BINFILE} ${FLASH_ADDR}" >> ${BINDIR}/burn.seg
+    # address to flash is hex formatted, as required by JLink
+    ADDR_TO_FLASH=$(printf "0x%08x\n" "$((${FLASH_ADDR} + ${IMAGE_OFFSET}))")
+    echo "loadbin ${BINFILE} ${ADDR_TO_FLASH}" >> ${BINDIR}/burn.seg
     if [ ! -z "${JLINK_POST_FLASH}" ]; then
         printf "${JLINK_POST_FLASH}\n" >> ${BINDIR}/burn.seg
     fi
     cat ${RIOTTOOLS}/jlink/reset.seg >> ${BINDIR}/burn.seg
     # flash device
     sh -c "${JLINK} ${JLINK_SERIAL} \
+                    -ExitOnError 1 \
                     -device '${JLINK_DEVICE}' \
                     -speed '${JLINK_SPEED}' \
                     -if '${JLINK_IF}' \
@@ -212,6 +219,7 @@ do_reset() {
     test_serial
     # reset the board
     sh -c "${JLINK} ${JLINK_SERIAL} \
+                    -ExitOnError 1 \
                     -device '${JLINK_DEVICE}' \
                     -speed '${JLINK_SPEED}' \
                     -if '${JLINK_IF}' \
@@ -228,23 +236,26 @@ do_term() {
     JLINK_PIDFILE=$(mktemp -t "jilnk_pid.XXXXXXXXXX")
     # will be called by trap
     cleanup() {
-        JLINK_PID="$(cat ${JLINK_PIDFILE})"
-        kill ${JLINK_PID}
-        rm -r "${JLINK_PIDFILE}"
+        if [ -f $JLINK_PIDFILE ]; then
+            JLINK_PID="$(cat ${JLINK_PIDFILE})"
+            kill ${JLINK_PID}
+            rm -r "${JLINK_PIDFILE}"
+        fi
         exit 0
     }
     # cleanup after script terminates
-    trap "cleanup ${JLINK_PIDFILE}" EXIT
-    # don't trapon Ctrl+C, because JLink keeps running
-    trap '' INT
+    trap "cleanup ${JLINK_PIDFILE}" EXIT INT
+
     # start Jlink as RTT server
     sh -c "${JLINK} ${JLINK_SERIAL} \
+            -ExitOnError 1 \
             -device '${JLINK_DEVICE}' \
             -speed '${JLINK_SPEED}' \
             -if '${JLINK_IF}' \
             -jtagconf -1,-1 \
             -commandfile '${RIOTTOOLS}/jlink/term.seg' >/dev/null & \
             echo  \$! > $JLINK_PIDFILE" &
+    sleep 1
 
     sh -c "${JLINK_TERMPROG} ${JLINK_TERMFLAGS}"
 }
@@ -258,7 +269,7 @@ shift # pop $1 from $@
 case "${ACTION}" in
   flash)
     echo "### Flashing Target ###"
-    echo "### Flashing at address ${FLASH_ADDR} ###"
+    echo "### Flashing at base address ${FLASH_ADDR} with offset ${IMAGE_OFFSET} ###"
     do_flash "$@"
     ;;
   debug)

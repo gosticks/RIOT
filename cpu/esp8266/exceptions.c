@@ -20,7 +20,6 @@
 #define ENABLE_DEBUG  0
 #include "debug.h"
 
-#include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -32,16 +31,9 @@
 #include "esp/common_macros.h"
 #include "esp/xtensa_ops.h"
 #include "sdk/ets.h"
+#include "tools.h"
 #include "xtensa/corebits.h"
-
-#ifndef MODULE_ESP_SDK_INT_HANDLING
 #include "xtensa/xtensa_api.h"
-#endif
-
-extern void malloc_stats (void);
-extern unsigned int get_free_heap_size (void);
-extern uint8_t _eheap;  /* end of heap (defined in esp8266.riot-os.app.ld) */
-extern uint8_t _sheap;  /* start of heap (defined in esp8266.riot-os.app.ld) */
 
 static const char* exception_names [] =
 {
@@ -87,55 +79,6 @@ static const char* exception_names [] =
         "Coprocessor7Disabled",        /* 39 */
 };
 
-#ifdef MODULE_ESP_SDK_INT_HANDLING
-
-void IRAM NORETURN exception_handler (void *arg)
-{
-    (void)arg;
-    uint32_t excsave1;
-    uint32_t excvaddr;
-    uint32_t exccause;
-    RSR(excsave1, excsave1);
-    RSR(excvaddr, excvaddr);
-    RSR(exccause, exccause);
-    (void)exception_names;
-
-    ets_printf("EXCEPTION!! exccause=%d (%s) @%08lx excvaddr=%08lx\n",
-               exccause, exception_names[exccause],
-               excsave1, excvaddr);
-
-    #if defined(DEVELHELP)
-    #if defined(MODULE_PS)
-    ps();
-    #endif
-    struct mallinfo minfo = mallinfo();
-    ets_printf("heap: %lu (free %lu) byte\n", &_eheap - &_sheap, get_free_heap_size());
-    ets_printf("sysmem: %d (used %d, free %d)\n", minfo.arena, minfo.uordblks, minfo.fordblks);
-    #endif
-    /* flushing the buffer */
-    ets_printf("                                                          \n");
-    ets_printf("                                                          \n");
-    ets_printf("                                                          \n");
-
-    /* hard reset */
-    __asm__ volatile (" call0 0x40000080 ");
-
-    UNREACHABLE();
-}
-
-void init_exceptions (void)
-{
-    _xtos_set_exception_handler(EXCCAUSE_UNALIGNED, exception_handler);
-    _xtos_set_exception_handler(EXCCAUSE_ILLEGAL, exception_handler);
-    _xtos_set_exception_handler(EXCCAUSE_INSTR_ERROR, exception_handler);
-    _xtos_set_exception_handler(EXCCAUSE_LOAD_STORE_ERROR, exception_handler);
-    _xtos_set_exception_handler(EXCCAUSE_LOAD_PROHIBITED, exception_handler);
-    _xtos_set_exception_handler(EXCCAUSE_STORE_PROHIBITED, exception_handler);
-    _xtos_set_exception_handler(EXCCAUSE_PRIVILEGED, exception_handler);
-}
-
-#else /* MODULE_ESP_SDK_INT_HANDLING */
-
 void IRAM NORETURN exception_handler (XtExcFrame *frame)
 {
     uint32_t excsave1;
@@ -148,9 +91,7 @@ void IRAM NORETURN exception_handler (XtExcFrame *frame)
     #if defined(MODULE_PS)
     ps();
     #endif
-    struct mallinfo minfo = mallinfo();
-    ets_printf("heap: %lu (free %lu) byte\n", &_eheap - &_sheap, get_free_heap_size());
-    ets_printf("sysmem: %d (used %d, free %d)\n", minfo.arena, minfo.uordblks, minfo.fordblks);
+    print_meminfo();
     #endif
     /* flushing the buffer */
     ets_printf("                                                          \n");
@@ -173,14 +114,11 @@ void init_exceptions (void)
     xt_set_exception_handler(EXCCAUSE_STORE_PROHIBITED, exception_handler);
     xt_set_exception_handler(EXCCAUSE_PRIVILEGED, exception_handler);
 }
-#endif /* MODULE_ESP_SDK_INT_HANDLING */
 
 void IRAM NORETURN panic_arch(void)
 {
     #if defined(DEVELHELP)
-    struct mallinfo minfo = mallinfo();
-    ets_printf("heap: %lu (free %lu) byte\n", &_eheap - &_sheap, get_free_heap_size());
-    ets_printf("sysmem: %d (used %d, free %d)\n", minfo.arena, minfo.uordblks, minfo.fordblks);
+    print_meminfo();
     ets_printf("                                                          \n");
     ets_printf("                                                          \n");
     #endif

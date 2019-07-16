@@ -33,36 +33,48 @@ Usage
 
 ```
 usage: compile_and_test_for_board.py [-h] [--applications APPLICATIONS]
-                                     [--applications-exclude
-                                      APPLICATIONS_EXCLUDE]
+                                     [--applications-exclude APPLICATIONS_EXCLUDE]
                                      [--no-test]
-                                     [--loglevel {debug,info,warning,error,
-                                                  fatal,critical}]
+                                     [--loglevel {debug,info,warning,error,fatal,critical}]
                                      [--incremental] [--clean-after]
+                                     [--compile-targets COMPILE_TARGETS]
+                                     [--test-targets TEST_TARGETS]
+                                     [--test-available-targets TEST_AVAILABLE_TARGETS]
                                      [--jobs JOBS]
                                      riot_directory board [result_directory]
 
 positional arguments:
   riot_directory        RIOT directory to test
   board                 Board to test
-  result_directory      Result directory, by default "results"
+  result_directory      Result directory (default: results)
 
 optional arguments:
   -h, --help            show this help message and exit
   --applications APPLICATIONS
                         List of applications to test, overwrites default
-                        configuration of testing all applications
+                        configuration of testing all applications (default:
+                        None)
   --applications-exclude APPLICATIONS_EXCLUDE
                         List of applications to exclude from tested
                         applications. Also applied after "--applications".
-  --no-test             Disable executing tests
+                        (default: None)
+  --no-test             Disable executing tests (default: False)
   --loglevel {debug,info,warning,error,fatal,critical}
-                        Python logger log level, defauts to "info"
+                        Python logger log level (default: info)
   --incremental         Do not rerun successful compilation and tests
-  --clean-after         Clean after running each test
+                        (default: False)
+  --clean-after         Clean after running each test (default: False)
+  --compile-targets COMPILE_TARGETS
+                        List of make targets to compile (default: clean all)
+  --test-targets TEST_TARGETS
+                        List of make targets to run test (default: test)
+  --test-available-targets TEST_AVAILABLE_TARGETS
+                        List of make targets to know if a test is present
+                        (default: test/available)
   --jobs JOBS, -j JOBS  Parallel building (0 means not limit, like '--jobs')
+                        (default: None)
 ```
-"""
+"""  # noqa
 
 import os
 import sys
@@ -101,45 +113,13 @@ def apps_directories(riotdir, apps_dirs=None, apps_dirs_skip=None):
     :param apps_dirs_skip: list of application directories to remove, applied
                            on the RIOT list or `apps_dirs`
     """
-    apps_dirs = apps_dirs or _riot_tracked_applications_dirs(riotdir)
+    apps_dirs = apps_dirs or _riot_applications_dirs(riotdir)
     apps_dirs_skip = apps_dirs_skip or []
 
     # Remove applications to skip
     apps_dirs = set(apps_dirs) - set(apps_dirs_skip)
 
     return sorted(list(apps_dirs))
-
-
-def _is_git_repo(riotdir):
-    """Check if directory is a git repository."""
-    cmd = ['git', 'rev-parse', '--git-dir']
-    ret = subprocess.call(cmd, cwd=riotdir,
-                          stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL)
-    return ret == 0
-
-
-def _is_git_tracked(appdir):
-    """Check if directory is a git repository."""
-    cmd = ['git', 'ls-files', '--error-unmatch', 'Makefile']
-    ret = subprocess.call(cmd, cwd=appdir,
-                          stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL)
-    return ret == 0
-
-
-def _riot_tracked_applications_dirs(riotdir):
-    """Applications directories in the RIOT repository with relative path.
-
-    Only return 'tracked' applications if riotdir is a git repository.
-    """
-    apps_dirs = _riot_applications_dirs(riotdir)
-
-    # Only keep tracked directories
-    if _is_git_repo(riotdir):
-        apps_dirs = [dir for dir in apps_dirs
-                     if _is_git_tracked(os.path.join(riotdir, dir))]
-    return apps_dirs
 
 
 def _riot_applications_dirs(riotdir):
@@ -178,6 +158,24 @@ def create_directory(directory, clean=False, mode=0o755):
     os.makedirs(directory, mode=mode, exist_ok=True)
 
 
+def is_in_directory(path, directory):
+    """Return if `path` is inside `directory`.
+
+    >>> is_in_directory('RIOT/a/b/c', 'RIOT')
+    True
+    >>> is_in_directory('RIOT/../a', 'RIOT')
+    False
+
+    # Also work if path is absolute but not the directory
+    >>> curdir = os.path.abspath(os.curdir)
+    >>> is_in_directory(os.path.join(curdir, 'RIOT', 'a'), 'RIOT')
+    True
+    """
+    directory = os.path.abspath(directory)
+    path = os.path.abspath(path)
+    return path.startswith(directory)
+
+
 class RIOTApplication():
     """RIOT Application representation.
 
@@ -193,6 +191,7 @@ class RIOTApplication():
 
     COMPILE_TARGETS = ('clean', 'all',)
     TEST_TARGETS = ('test',)
+    TEST_AVAILABLE_TARGETS = ('test/available',)
 
     def __init__(self, board, riotdir, appdir, resultdir):
         self.board = board
@@ -200,6 +199,10 @@ class RIOTApplication():
         self.appdir = appdir
         self.resultdir = os.path.join(resultdir, appdir)
         self.logger = logging.getLogger('%s.%s' % (board, appdir))
+
+        # Currently not handling absolute directories or outside of RIOT
+        assert is_in_directory(self.resultdir, resultdir), \
+            "Application result directory is outside main result directory"
 
     # Extract values from make
     def name(self):
@@ -212,13 +215,14 @@ class RIOTApplication():
     def has_test(self):
         """Detect if the application has tests.
 
-        Use '--silent' to disable the message from packages:
-
-            make[1]: Nothing to be done for 'Makefile.include'
+        Check TEST_AVAILABLE_TARGETS execute without error.
         """
-        tests = self.make(['--silent', 'info-debug-variable-TESTS'],
-                          log_error=True).strip()
-        return bool(tests)
+        try:
+            self.make(self.TEST_AVAILABLE_TARGETS)
+        except subprocess.CalledProcessError:
+            return False
+        else:
+            return True
 
     def board_is_supported(self):
         """Return if current board is supported."""
@@ -539,7 +543,7 @@ PARSER = argparse.ArgumentParser(
 PARSER.add_argument('riot_directory', help='RIOT directory to test')
 PARSER.add_argument('board', help='Board to test', type=_strip_board_equal)
 PARSER.add_argument('result_directory', nargs='?', default='results',
-                    help='Result directory, by default "results"')
+                    help='Result directory')
 PARSER.add_argument(
     '--applications', type=list_from_string,
     help=('List of applications to test, overwrites default configuration of'
@@ -553,7 +557,7 @@ PARSER.add_argument(
 PARSER.add_argument('--no-test', action='store_true', default=False,
                     help='Disable executing tests')
 PARSER.add_argument('--loglevel', choices=LOG_LEVELS, default='info',
-                    help='Python logger log level, defauts to "info"')
+                    help='Python logger log level')
 PARSER.add_argument('--incremental', action='store_true', default=False,
                     help='Do not rerun successful compilation and tests')
 PARSER.add_argument('--clean-after', action='store_true', default=False,
@@ -565,6 +569,9 @@ PARSER.add_argument('--compile-targets', type=list_from_string,
 PARSER.add_argument('--test-targets', type=list_from_string,
                     default=' '.join(RIOTApplication.TEST_TARGETS),
                     help='List of make targets to run test')
+PARSER.add_argument('--test-available-targets', type=list_from_string,
+                    default=' '.join(RIOTApplication.TEST_AVAILABLE_TARGETS),
+                    help='List of make targets to know if a test is present')
 
 PARSER.add_argument(
     '--jobs', '-j', type=int, default=None,
@@ -599,6 +606,7 @@ def main():
     # Overwrite the compile/test targets from command line arguments
     RIOTApplication.COMPILE_TARGETS = args.compile_targets
     RIOTApplication.TEST_TARGETS = args.test_targets
+    RIOTApplication.TEST_AVAILABLE_TARGETS = args.test_available_targets
 
     # List of applications for board
     applications = [RIOTApplication(board, args.riot_directory, app_dir,

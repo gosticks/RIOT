@@ -6,9 +6,10 @@ PSEUDOMODULES += can_raw
 PSEUDOMODULES += ccn-lite-utils
 PSEUDOMODULES += conn_can_isotp_multi
 PSEUDOMODULES += cord_ep_standalone
-PSEUDOMODULES += cord_epsim_standalone
 PSEUDOMODULES += core_%
 PSEUDOMODULES += cortexm_fpu
+PSEUDOMODULES += cpu_check_address
+PSEUDOMODULES += devfs_%
 PSEUDOMODULES += ecc_%
 PSEUDOMODULES += emb6_router
 PSEUDOMODULES += event_%
@@ -29,12 +30,14 @@ PSEUDOMODULES += gnrc_netif_dedup
 PSEUDOMODULES += gnrc_sixloenc
 PSEUDOMODULES += gnrc_sixlowpan_border_router_default
 PSEUDOMODULES += gnrc_sixlowpan_default
+PSEUDOMODULES += gnrc_sixlowpan_frag_hint
 PSEUDOMODULES += gnrc_sixlowpan_iphc_nhc
 PSEUDOMODULES += gnrc_sixlowpan_nd_border_router
 PSEUDOMODULES += gnrc_sixlowpan_router
 PSEUDOMODULES += gnrc_sixlowpan_router_default
 PSEUDOMODULES += gnrc_sock_check_reuse
 PSEUDOMODULES += gnrc_txtsnd
+PSEUDOMODULES += i2c_scan
 PSEUDOMODULES += l2filter_blacklist
 PSEUDOMODULES += l2filter_whitelist
 PSEUDOMODULES += lis2dh12_spi
@@ -55,6 +58,7 @@ PSEUDOMODULES += newlib_gnu_source
 PSEUDOMODULES += newlib_nano
 PSEUDOMODULES += openthread
 PSEUDOMODULES += pktqueue
+PSEUDOMODULES += posix_headers
 PSEUDOMODULES += printf_float
 PSEUDOMODULES += prng
 PSEUDOMODULES += prng_%
@@ -62,11 +66,17 @@ PSEUDOMODULES += riotboot_%
 PSEUDOMODULES += saul_adc
 PSEUDOMODULES += saul_default
 PSEUDOMODULES += saul_gpio
+PSEUDOMODULES += saul_nrf_temperature
+PSEUDOMODULES += scanf_float
 PSEUDOMODULES += schedstatistics
+PSEUDOMODULES += semtech_loramac_rx
 PSEUDOMODULES += sock
 PSEUDOMODULES += sock_ip
 PSEUDOMODULES += sock_tcp
 PSEUDOMODULES += sock_udp
+PSEUDOMODULES += stdin
+PSEUDOMODULES += stdio_ethos
+PSEUDOMODULES += stdio_uart_rx
 
 # print ascii representation in function od_hex_dump()
 PSEUDOMODULES += od_string
@@ -115,6 +125,11 @@ PSEUDOMODULES += rn2903
 PSEUDOMODULES += vcnl4010
 PSEUDOMODULES += vcnl4020
 PSEUDOMODULES += vcnl4040
+
+# include variants of lpsxxx drivers as pseudo modules
+PSEUDOMODULES += lps331ap
+PSEUDOMODULES += lps22hb
+PSEUDOMODULES += lps25hb
 
 # add all pseudo random number generator variants as pseudomodules
 PSEUDOMODULES += prng_%
