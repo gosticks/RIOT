@@ -9,13 +9,8 @@
 #include "vendor/hw_memmap.h"
 #include "vendor/hw_types.h"
 #include "vendor/hw_udma.h"
-// TODO: hot candidate for replacement
-#include "driverlib/interrupt.h"
-#include "driverlib/pin.h"
-#include "driverlib/prcm.h"
-#include "driverlib/rom_map.h"
-#include "driverlib/spi.h"
-#include "driverlib/utils.h"
+#include "vendor/rom.h"
+
 #include "periph/spi.h"
 
 #include <stdbool.h>
@@ -48,24 +43,24 @@ uint32_t getSPIBitRate(uint8_t minorVer) {
 }
 
 int registerRxInterruptHandler(SimpleLinkEventHandler handler) {
-  MAP_IntRegister(INT_NWPIC, handler);
-  MAP_IntPrioritySet(INT_NWPIC, 0x20);
-  MAP_IntPendClear(INT_NWPIC);
-  MAP_IntEnable(INT_NWPIC);
+  ROM_IntRegister(INT_NWPIC, handler);
+  ROM_IntPrioritySet(INT_NWPIC, 0x20);
+  ROM_IntPendClear(INT_NWPIC);
+  ROM_IntEnable(INT_NWPIC);
   return 0;
 }
 
 void _clear_wifi_interrupt_handler(void) {
-  MAP_IntDisable(INT_NWPIC);
-  MAP_IntUnregister(INT_NWPIC);
-  MAP_IntPendClear(INT_NWPIC);
+  ROM_IntDisable(INT_NWPIC);
+  ROM_IntUnregister(INT_NWPIC);
+  ROM_IntPendClear(INT_NWPIC);
 
   // TODO: also clear any IO specific parts
 }
 
 void powerOffWifi(void) {
   // must delay 300 usec to enable the NWP to finish all sl_stop activities
-  UtilsDelay(300 * 80 / 3);
+  ROM_UtilsDelay(300 * 80 / 3);
 
   // mask network processor interrupt interrupt
   maskWifiInterrupt();
@@ -76,7 +71,7 @@ void powerOffWifi(void) {
   // sl_stop eco for PG1.32 devices
   HWREG(0x4402E16C) |= 0x2;
 
-  UtilsDelay(800000);
+  ROM_UtilsDelay(800000);
 }
 
 void powerOnWifi(void) {
@@ -245,39 +240,14 @@ int initWifiModule(void) {
 int initWifiSPI(void) {
   // TODO: later remove check when replaced calls
   // get rom version.
-  uint32_t spiBitRate = 0;
   CC3200_RomInfo *romInfo = getDeviceRomInfo();
-
-  MAP_PRCMPeripheralClkEnable(PRCM_LSPI, PRCM_RUN_MODE_CLK | PRCM_SLP_MODE_CLK);
-
-  // Disable Chip Select
-  MAP_SPICSDisable(WIFI_SPI_BASE);
-
-  // Disable SPI Channel
-  MAP_SPIDisable(WIFI_SPI_BASE);
-
-  // reset SPI
-  MAP_SPIReset(WIFI_SPI_BASE);
-
-  spiBitRate = getSPIBitRate(romInfo->minorVer);
+  uint32_t spiBitRate = getSPIBitRate(romInfo->minorVer);
   if (spiBitRate == 0) {
     return -1;
   }
-  // NWP master interface
-  // ulBase = LSPI_BASE;
 
-  MAP_SPIConfigSetExpClk(WIFI_SPI_BASE, MAP_PRCMPeripheralClockGet(PRCM_LSPI),
-                         spiBitRate, SPI_MODE_MASTER, SPI_SUB_MODE_0,
-                         (SPI_SW_CTRL_CS | SPI_4PIN_MODE | SPI_TURBO_OFF |
-                          SPI_CS_ACTIVEHIGH | SPI_WL_32));
-
-  // TODO: add UDMA to improve transmission performance
-  // if(MAP_PRCMPeripheralStatusGet(PRCM_UDMA))
-  // {
-  //   g_ucDMAEnabled = (HWREG(UDMA_BASE + UDMA_O_CTLBASE) != 0x0) ? 1 : 0;
-  // }
-
-  MAP_SPIEnable(WIFI_SPI_BASE);
+  // acquire spi device
+  spi_acquire(1, 1, SPI_SUB_MODE_0, spiBitRate);
   return 0;
 }
 
