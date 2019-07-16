@@ -1,12 +1,9 @@
 export CPU_ARCH = cortex-m4
 
-# required by the TI driverlib 
-export CFLAGS += -DPART_CC3200
+# must be set or the ROM definitions will not be set
 export CFLAGS += -DTARGET_IS_CC3200
-export CFLAGS += -DSL_PLATFORM_MULTI_THREADED
 
-# include TI driverlib (only temporal till port is ready)
-USEMODULE += cc3200_driverlib
+export CFLAGS += -DSL_PLATFORM_MULTI_THREADED
 
 # include periph module
 USEMODULE += periph

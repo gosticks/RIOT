@@ -30,8 +30,13 @@
 extern "C"
 {
 #endif
+/**
+ * @name    Define a custom type for GPIO pins
+ * @{
+ */
+#define HAVE_GPIO_T
 
-    /**
+/**
  * @name Numeric representation of the four GPIO ports
  * @{
  */
@@ -43,22 +48,64 @@ extern "C"
         PORT_A3 = 3,
     };
 
+/** @} */
+
+/**
+ * @brief gpio high and low macros 
+ * @{
+ */
+#define GPIO_VALUE_HIGH (1)
+#define GPIO_VALUE_LOW (0)
+/** @} */
+
+
 /**
  * @name    Define a custom type for GPIO pins
  * @{
  */
 #define HAVE_GPIO_T
-    // typedef uint32_t gpio_t;
+typedef uint32_t gpio_t;
 /** @} */
+
+/**
+ * @name   Override the default GPIO mode settings
+ * @{
+ */
+#define HAVE_GPIO_MODE_T
+typedef enum {
+    GPIO_IN         = 0x00000000,     /**< input, no pull */
+    GPIO_OUT        = 0x00000001,     /**< output */
+    GPIO_OD         = 0x00000002,     /**< open drain */
+    GPIO_OD_PU      = 0x00000106,     /**< open drain pull-up */
+    GPIO_IN_PU      = 0x00000107,     /**< input, pull-up */
+    // not supported at the moment
+    // GPIO_IN_ANALOG  = 0x10000000,     /**< input, analog */
+    GPIO_IN_PD      = 0x00000208,     /**< input, pull-down */
+} gpio_mode_t;
+/** @} */
+
+/**
+ * @brief   Override mode flank selection values
+ *
+ * @{
+ */
+#define HAVE_GPIO_FLANK_T
+typedef enum {
+	GPIO_FALLING = 0, /**< emit interrupt on falling flank */
+	GPIO_BOTH    = 1, /**< emit interrupt on both flanks   */
+	GPIO_LOW     = 2, /**< emit interrupt on low level     */
+	GPIO_RISING  = 4, /**< emit interrupt on rising flank  */
+	GPIO_NONE    = 5, /**< emit interrupt on rising flank  */
+	GPIO_HIGH    = 6  /**< emit interrupt on low level     */
+} gpio_flank_t;
+/** @} */
+
 /**
  * @brief   Define a CPU specific GPIO pin generator macro
  */
 #define GPIO_PIN(x, y) ((x << 6) | (y - 1))
 #define GPIO_PINS_PER_PORT 8
 
-#define LED_RED GPIO_PIN(PORT_A1, 64)   //9)
-#define LED_ORANGE GPIO_PIN(PORT_A1, 1) //10)
-#define LED_GREEN GPIO_PIN(PORT_A1, 2)  //11)
     typedef unsigned long cc3200_gpio_reg;
 
     typedef struct cc3200_gpio_t
@@ -75,12 +122,11 @@ extern "C"
         cc3200_gpio_reg icr;            // GPIO Interrupt Clear
 
     } cc3200_gpio_t;
-
+/** @} */
 #ifdef __cplusplus
 } /* end extern "C" */
 #endif
 
 #endif /* CC3200_GPIO_H */
 
-/** @} */
 /** @} */

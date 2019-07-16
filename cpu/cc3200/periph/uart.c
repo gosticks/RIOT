@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Attilio Dona'
+ * Copyright (C) 2019 Ludwig Maximilian Universität
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -7,15 +7,16 @@
  */
 
 /**
- * @ingroup     driver_periph
+ * @defgroup        deriver_periph
+ * @ingroup         cc3200_uart
  * @{
  *
  * @file
- * @brief       Low-level UART driver implementation
+ * @brief           Driver for the cc3200 UART controller
  *
- * @author      Attilio Dona'
+ * @author          Wladislaw Meixner <wladislaw.meixner@campus.lmu.de>
  *
- * @}
+ * @{
  */
 
 #include <stddef.h>
@@ -28,359 +29,247 @@
 #include "thread.h"
 #include "xtimer.h"
 
+#include "vendor/hw_uart.h"
 #include "vendor/rom.h"
 
-#define UNUSED(x) ((x) = (x))
+/* Bit masks for the UART Masked Interrupt Status (MIS) Register: */
+#define OEMIS (1 << 10) /**< UART overrun errors */
+#define BEMIS (1 << 9) /**< UART break error */
+#define FEMIS (1 << 7) /**< UART framing error */
+#define RTMIS (1 << 6) /**< UART RX time-out */
+#define RXMIS (1 << 4) /**< UART RX masked interrupt */
 
-// FIXME: don't know why this is needed (ROM_IntEnable should be already
-// present)
-#define ROM_IntEnable                                                          \
-  ((void (*)(unsigned long ulInterrupt))ROM_INTERRUPTTABLE[0])
-
-/**
- * Define the nominal CPU core clock
- */
-#define F_CPU 80000000
-
-#define SEC_TO_TICKS(sec)                                                      \
-  80000000 * sec /**< Convert seconds to  clock ticks                          \
-                  */
-#define MSEC_TO_TICKS(msec)                                                    \
-  80000 * msec /**< Convert millisecs to  clock ticks */
-#define USEC_TO_TICKS(usec)                                                    \
-  80 * usec /**< Convert microseconds to  clock ticks */
-
+#define PIN_MODE_UART 0x00000003
 /* guard file in case no UART device was specified */
 #if UART_NUMOF
 
 /*---------------------------------------------------------------------------*/
 
 /**
- * @brief Each UART device has to store two callbacks.
- */
-// typedef struct {
-//   uart_rx_cb_t rx_cb;
-//   void *arg;
-// } uart_conf_t;
-
-int uart_init_blocking(uart_t uart, uint32_t baudrate);
-
-/**
  * @brief Allocate memory to store the callback functions.
  */
-static uart_isr_ctx_t uart_config[UART_NUMOF];
+static uart_isr_ctx_t uart_ctx[UART_NUMOF];
 
-/*---------------------------------------------------------------------------*/
-static void reset(unsigned long uart_base) {
-  MAP_UARTDisable(uart_base);
-  MAP_UARTRxErrorClear(uart_base);
-  MAP_UARTEnable(uart_base);
-  MAP_UARTFIFODisable(uart_base);
+void irq_handler(uart_t uart)
+{
+	assert(uart < UART_NUMOF);
+
+	volatile cc3200_uart_t *reg = uart_config[uart].dev;
+
+	// get masked interrupt flags
+	uint16_t mis = uart_config[uart].dev->MIS.raw;
+	// clear the interrupt
+	reg->ICR = mis;
+
+	// read data
+	while (uart_config[uart].dev->flags.bits.RXFE == 0) {
+		uart_ctx[uart].rx_cb(uart_ctx[uart].arg,
+				     uart_config[uart].dev->dr);
+	}
+
+	if (mis & (OEMIS | BEMIS | FEMIS)) {
+		// clear error status
+		reg->cc3200_uart_dr.ecr = 0xFF;
+	}
+
+	cortexm_isr_end();
 }
 
-/*---------------------------------------------------------------------------*/
-
-#if UART_0_EN
-void isr_uart0(void) {
-
-  MAP_UARTIntClear(UARTA0_BASE, UART_INT_RX | UART_INT_OE | UART_INT_BE |
-                                    UART_INT_PE | UART_INT_FE);
-
-  if (MAP_UARTRxErrorGet(UARTA0_BASE)) {
-    reset(UARTA0_BASE);
-  } else {
-    long data;
-
-    data = MAP_UARTCharGetNonBlocking(UARTA0_BASE);
-    if (data != -1) {
-      uart_config[0].rx_cb(uart_config[0].arg, data);
-    }
-  }
-
-  if (sched_context_switch_request) {
-    thread_yield();
-  }
+#if UART_0_ISR
+void isr_uart0(void)
+{
+	irq_handler((uart_t)0);
 }
-#endif /* UART_0_EN */
-
-#if UART_1_EN
-void isr_uart1(void) {
-  MAP_UARTIntClear(UARTA1_BASE, UART_INT_RX | UART_INT_OE | UART_INT_BE |
-                                    UART_INT_PE | UART_INT_FE);
-
-  if (UARTRxErrorGet(UARTA1_BASE)) {
-    reset(UARTA1_BASE);
-  } else {
-    long data;
-
-    data = MAP_UARTCharGetNonBlocking(UARTA1_BASE);
-    if (data != -1) {
-      uart_config[1].rx_cb(uart_config[1].arg, data);
-    }
-  }
-
-  if (sched_context_switch_request) {
-    thread_yield();
-  }
+#endif
+#if UART_1_ISR
+void isr_uart1(void)
+{
+	irq_handler((uart_t)1);
 }
 #endif /* UART_1_EN */
 
-int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg) {
-  /* initialize basic functionality */
-  int res = uart_init_blocking(uart, baudrate);
+/**
+ * @brief gracefully disable uart device
+ *
+ * @param uart interface number
+ */
+void _uart_disable(uart_t uart)
+{
+	volatile cc3200_uart_t *reg = uart_config[uart].dev;
 
-  if (res != 0) {
-    return res;
-  }
+	// wait for uart to finish
+	while (reg->flags.bits.BUSY) {
+	}
 
-  /* register callbacks */
-  uart_config[uart].rx_cb = rx_cb;
-  uart_config[uart].arg = arg;
+	// disable fifo
+	reg->LCRH.bits.FEN = 0;
 
-  /* configure interrupts and enable RX interrupt */
-  switch (uart) {
-#if UART_0_EN
-  case UART_0:
-    MAP_UARTIntEnable(UARTA0_BASE, UART_INT_RX | UART_INT_OE | UART_INT_BE |
-                                       UART_INT_PE | UART_INT_FE);
-    MAP_IntPrioritySet(INT_UARTA0, UART_IRQ_PRIO);
-    ROM_IntEnable(INT_UARTA0);
-    break;
-#endif
-#if UART_1_EN
-  case UART_1:
-    MAP_UARTIntEnable(UARTA1_BASE, UART_INT_RX | UART_INT_OE | UART_INT_BE |
-                                       UART_INT_PE | UART_INT_FE);
-    MAP_IntPrioritySet(INT_UARTA1, UART_IRQ_PRIO);
-    ROM_IntEnable(INT_UARTA1);
-    break;
-#endif
-  }
-
-  return 0;
-}
-
-int uart_init_blocking(uart_t uart, uint32_t baudrate) {
-  cc3200_periph_regs_t *periphReg;
-  switch (uart) {
-#if UART_0_EN
-  case UART_0:
-    init_periph_clk(&ARCM->UART_A0);
-    ARCM->UART_A0.clk_gating |= PRCM_RUN_MODE_CLK;
-    // MAP_PRCMPeripheralReset(PRCM_UARTA0);
-
-    //
-    // Enable Peripheral Clocks
-    //
-    // MAP_PRCMPeripheralClkEnable(PRCM_UARTA0, PRCM_RUN_MODE_CLK);
-
-    //
-    // Configure PIN_55 for UART0 UART0_TX
-    //
-    MAP_PinTypeUART(PIN_55, PIN_MODE_3);
-
-    //
-    // Configure PIN_57 for UART0 UART0_RX
-    //
-    MAP_PinTypeUART(PIN_57, PIN_MODE_3);
-
-    MAP_UARTConfigSetExpClk(
-        UARTA0_BASE, MAP_PRCMPeripheralClockGet(PRCM_UARTA0), baudrate,
-        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-
-    reset(UARTA0_BASE);
-
-    break;
-#endif
-#if UART_1_EN
-  case UART_1:
-    init_periph_clk(&ARCM->UART_A1);
-    ARCM->UART_A1.clk_gating |= PRCM_RUN_MODE_CLK;
-    //
-    // Enable Peripheral Clocks
-    //
-    // PRCMPeripheralClkEnable(PRCM_UARTA1, PRCM_RUN_MODE_CLK);
-
-    //
-    // Configure PIN_07 for UART1 UART1_TX
-    //
-    PinTypeUART(PIN_07, PIN_MODE_5);
-
-    //
-    // Configure PIN_08 for UART1 UART1_RX
-    //
-    PinTypeUART(PIN_08, PIN_MODE_5);
-
-    MAP_UARTConfigSetExpClk(
-        UARTA1_BASE, MAP_PRCMPeripheralClockGet(PRCM_UARTA1), baudrate,
-        (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-    reset(UARTA1_BASE);
-
-    break;
-#endif
-
-  default:
-    return -1;
-  }
-
-  return 0;
-}
-
-void uart_tx_begin(uart_t uart) { UNUSED(uart); }
-
-void uart_tx_end(uart_t uart) { UNUSED(uart); }
-
-void uart_write(uart_t uart, const uint8_t *data, size_t len) {
-  unsigned long u;
-
-#ifdef CUSTOM_WRITE_R
-  uart_remote(data, len);
-#endif
-
-  switch (uart) {
-#if UART_0_EN
-  case UART_0:
-    u = UARTA0_BASE;
-    break;
-#endif
-#if UART_1_EN
-  case UART_1:
-    u = UARTA1_BASE;
-    break;
-#endif
-
-  default:
-    return;
-  }
-
-  for (size_t i = 0; i < len; i++) {
-    MAP_UARTCharPut(u, data[i]);
-  }
-}
-
-int uart_read_blocking(uart_t uart, char *data) {
-  unsigned long u;
-
-  switch (uart) {
-#if UART_0_EN
-  case UART_0:
-    u = UARTA0_BASE;
-    break;
-#endif
-#if UART_1_EN
-  case UART_1:
-    u = UARTA1_BASE;
-    break;
-#endif
-
-  default:
-    return -1;
-  }
-
-  *data = MAP_UARTCharGet(u);
-
-  return 1;
+	// disable the uart
+	reg->CTL.raw &= ~(UART_CTL_UARTEN | UART_CTL_TXE | UART_CTL_RXE);
 }
 
 /**
- * @brief Get the Command string from UART
+ * @brief enable uart device
  *
- * @param  pucBuffer is the command store to which command will be populated
- * @param  ucBufLen is the length of buffer store available
- *
- * @return Length of the bytes received. -1 if buffer length exceeded.
- *
- **/
-int uart_read_line(uart_t uart, char *pcBuffer, unsigned int uiBufLen) {
-  char cChar;
-  unsigned int iLen = 0;
-  unsigned long CONSOLE;
+ * @param uart interface number
+ */
+void _uart_enable(uart_t uart)
+{
+	volatile cc3200_uart_t *reg = uart_config[uart].dev;
 
-  switch (uart) {
+	// enable FIFO
+	reg->LCRH.bits.FEN = 1;
+
+	// enable TX, RX and UART
+	reg->CTL.raw |= (UART_CTL_UARTEN | UART_CTL_TXE | UART_CTL_RXE);
+}
+
+/**
+ * @brief configure uart device
+ *
+ * @param uart interface number
+ * @param baudrate
+ * @param config
+ */
+void _uart_config(uart_t uart, uint32_t baudrate, uint32_t config)
+{
+	// stop uart
+	_uart_disable(uart);
+
+	volatile cc3200_uart_t *reg = uart_config[uart].dev;
+	uint32_t		div;
+	// check if baudrate is too high and needs high speed mode
+	if ((baudrate * 16) > CLOCK_CORECLOCK) {
+		reg->CTL.bits.HSE = 1;
+
+		// half the baudrate to compensate for high speed mode
+		baudrate /= 2;
+	} else {
+		// disable high speed mode
+		reg->CTL.bits.HSE = 0;
+	}
+
+	// compute & set fractional baud rate divider
+	div       = (((CLOCK_CORECLOCK * 8) / baudrate) + 1) / 2;
+	reg->IBRD = div / 64;
+	reg->FBRD = div % 64;
+
+	// set config
+	reg->LCRH.raw = config;
+
+	// clear flags
+	reg->flags.raw = 0;
+
+	_uart_enable(uart);
+}
+
+int uart_init_blocking(uart_t uart, uint32_t baudrate)
+{
+	uart_poweron(uart);
+
+	// Configure PIN_55 for UART0 UART0_TX
+	ROM_PinTypeUART(uart_config[uart].pin_tx, PIN_MODE_UART);
+
+	// Configure PIN_57 for UART0 UART0_RX
+	ROM_PinTypeUART(uart_config[uart].pin_rx, PIN_MODE_UART);
+
+	_uart_config(uart, baudrate,
+		     (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
+		      UART_CONFIG_PAR_NONE));
+
+	return 0;
+}
+
+int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
+{
+	// initialize basic functionality
+	int res = uart_init_blocking(uart, baudrate);
+
+	if (res != 0) {
+		return res;
+	}
+
+	// register callbacks
+	uart_ctx[uart].rx_cb = rx_cb;
+	uart_ctx[uart].arg   = arg;
+	uint32_t uart_base   = (uint32_t)uart_config[uart].dev;
+
+	ROM_UARTIntEnable(uart_base, UART_INT_RX | UART_INT_OE | UART_INT_BE |
+					     UART_INT_PE | UART_INT_FE);
+
+	ROM_IntPrioritySet(uart_config[uart].irqn, INT_PRIORITY_LVL_3);
+	ROM_IntEnable(uart_config[uart].irqn);
+	return 0;
+}
+
+void uart_write(uart_t uart, const uint8_t *data, size_t len)
+{
+	uint32_t u = (uint32_t)uart_config[uart].dev;
+	for (size_t i = 0; i < len; i++) {
+		ROM_UARTCharPut(u, data[i]);
+	}
+}
+
+int uart_read_blocking(uart_t uart, char *data)
+{
+	uint32_t u = (uint32_t)uart_config[uart].dev;
+	*data      = ROM_UARTCharGet(u);
+
+	return 1;
+}
+
+int uart_write_blocking(uart_t uart, char data)
+{
+	ROM_UARTCharPut((uint32_t)uart_config[uart].dev, data);
+	return 1;
+}
+
+void uart_poweron(uart_t uart)
+{
+	switch (uart) {
 #if UART_0_EN
-  case UART_0:
-    CONSOLE = UARTA0_BASE;
-    break;
+	case UART_0:
+		// reset & enable periph clk
+		reset_periph_clk(&ARCM->UART_A0);
+		ARCM->UART_A0.clk_gating |= PRCM_RUN_MODE_CLK;
+
+		break;
 #endif
 #if UART_1_EN
-  case UART_1:
-    CONSOLE = UARTA1_BASE;
-    break;
+	case UART_1:
+		// reset & enable periph clk
+		reset_periph_clk(&ARCM->UART_A1);
+		ARCM->UART_A1.clk_gating |= PRCM_RUN_MODE_CLK;
+		break;
 #endif
 
-  default:
-    return -1;
-  }
+	default:
+		return;
+	}
 
-  //
-  // Wait to receive a character over UART
-  //
-  while (MAP_UARTCharsAvail(CONSOLE) == false) {
-    xtimer_usleep(MSEC_TO_TICKS(1));
-  }
-  cChar = MAP_UARTCharGetNonBlocking(CONSOLE);
-
-  //
-  // Echo the received character
-  //
-  MAP_UARTCharPut(CONSOLE, cChar);
-  iLen = 0;
-
-  //
-  // Checking the end of Command
-  //
-  while ((cChar != '\r') && (cChar != '\n')) {
-    //
-    // Handling overflow of buffer
-    //
-    if (iLen >= uiBufLen) {
-      return -1;
-    }
-
-    //
-    // Copying Data from UART into a buffer
-    //
-    if (cChar != '\b') {
-      *(pcBuffer + iLen) = cChar;
-      iLen++;
-    } else {
-      //
-      // Deleting last character when you hit backspace
-      //
-      if (iLen) {
-        iLen--;
-      }
-    }
-    //
-    // Wait to receive a character over UART
-    //
-    while (MAP_UARTCharsAvail(CONSOLE) == false) {
-      xtimer_usleep(MSEC_TO_TICKS(1));
-    }
-    cChar = MAP_UARTCharGetNonBlocking(CONSOLE);
-    //
-    // Echo the received character
-    //
-    MAP_UARTCharPut(CONSOLE, cChar);
-  }
-
-  *(pcBuffer + iLen) = '\0';
-
-  MAP_UARTCharPut(CONSOLE, '\n');
-  MAP_UARTCharPut(CONSOLE, '\r');
-
-  return iLen;
+	_uart_enable(uart);
 }
 
-int uart_write_blocking(uart_t uart, char data) {
-  UNUSED(uart);
-  MAP_UARTCharPut(UARTA0_BASE, data);
+void uart_poweroff(uart_t uart)
+{
+	// disable uart
+	switch (uart) {
+#if UART_0_EN
+	case UART_0:
+		ARCM->UART_A0.clk_gating &= ~PRCM_RUN_MODE_CLK;
 
-  return 1;
+		break;
+#endif
+#if UART_1_EN
+	case UART_1:
+		ARCM->UART_A1.clk_gating &= ~PRCM_RUN_MODE_CLK;
+		break;
+#endif
+
+	default:
+		return;
+	}
+	_uart_disable(uart);
 }
-
-void uart_poweron(uart_t uart) { UNUSED(uart); }
-
-void uart_poweroff(uart_t uart) { UNUSED(uart); }
 
 #endif /* UART_NUMOF */

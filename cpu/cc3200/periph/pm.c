@@ -6,20 +6,34 @@
  * directory for more details.
  */
 
+/**
+ * @ingroup     cpu_cortexm_common
+ * @ingroup     drivers_periph_pm
+ * @{
+ *
+ * @file
+ * @brief       common periph/pm functions
+ *
+ * @author      Wladislaw Meixner <wladislaw.meixner@campus.lmu.de>
+ *
+ * @}
+ */
+
 #include "periph/pm.h"
-#include "driverlib/rom_map.h"
+#include "vendor/rom.h"
 
 #ifdef PROVIDES_PM_SET_LOWEST_CORTEXM
-// TODO: needs to be impemented
-void pm_set_lowest(void) {
-  /* this will hibernate with no way to wake up for now */
+/**
+ * @brief put device into hibernation (currently with no way to wake up)
+ */
+void pm_set_lowest(void)
+{
+	/* this will hibernate with no way to wake up for now */
 
-  // write to the hibernate register
-  HWREG(HIB3P3_BASE + HIB3P3_O_MEM_HIB_REQ) = 0x1;
+	// write to the hibernate register
+	HWREG(HIB3P3_BASE + HIB3P3_O_MEM_HIB_REQ) = 0x1;
 
-  // wait for 200 uSec
-  UtilsDelay((80 * 200) / 3);
+	// wait for 200 uSec
+	ROM_UtilsDelay((80 * 200) / 3);
 }
 #endif
-
-void pm_off(void) { /* No Generic Power off Mechanism */ }

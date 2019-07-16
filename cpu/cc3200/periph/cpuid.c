@@ -25,5 +25,5 @@
 
 void cpuid_get(void *id)
 {
-    memcpy(id, CPUID_ADDR, CPUID_LEN);
+	memcpy(id, CPUID_ADDR, CPUID_LEN);
 }
