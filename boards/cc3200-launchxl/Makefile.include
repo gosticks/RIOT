@@ -9,18 +9,25 @@ endif
 # setup serial terminal
 # if multiple MCUs are connected the last number will increment
 export PORT_LINUX ?=/dev/ttyUSB0
-export PORT_DARWIN ?= $(firstword $(sort $(wildcard /dev/tty.usbmodem*)))
+export PORT_DARWIN ?=$(firstword $(sort $(wildcard /dev/tty.usbserial*)))
 
 # setup serial terminal
 include $(RIOTMAKE)/tools/serial.inc.mk
 
 # config flasher tool 
-# TODO: use real path "ENERGIA_ROOT not configured"
-export ENERGIA_ROOT ?= /home/wlad/CC3200/cc3200/tools/cc3200prog
+ENERGIA_TOOL_LINUX ?= ~/.energia15/packages/energia/tools/1.1.4/cc3200prog
+ENERGIA_TOOL_DARWIN ?= ~/Library/Energia15/packages/energia/tools/1.1.4/cc3200prog
+
+# set energia tool defaults
+OS := $(shell uname -s)
+ifeq ($(OS),Linux)
+  export ENERGIA_TOOL ?= $(ENERGIA_TOOL_LINUX)
+else
+  export ENERGIA_TOOL ?= $(ENERGIA_TOOL_DARWIN)
+endif
+
+
 export PROGRAMMER ?= cc3200prog
-# configure flasher
-# export FLASHER = $(RIOTBOARD)/$(BOARD)/dist/flash.sh
-# export FFLAGS  = $(ENERGIA_ROOT) $(PORT) $(ELFFILE)
 
 # flash using openocd
 ifeq ($(PROGRAMMER),openocd)
@@ -29,23 +36,21 @@ ifeq ($(PROGRAMMER),openocd)
 
 # flash using energia cc3200prog tool available as part of the Energia tool
 else ifeq ($(PROGRAMMER),cc3200prog)
-  export HEXFILE = $(ELFFILE:.elf=.bin)
+  export FLASHFILE = $(ELFFILE:.elf=.bin)
   export FLASHER = $(RIOTBOARD)/$(BOARD)/dist/flasher.sh
-  export FFLAGS  = $(ENERGIA_ROOT) $(PORT) $(HEXFILE)
+  export FFLAGS  = $(ENERGIA_TOOL) $(PORT) $(FLASHFILE)
 endif
 
 # debugger config
 export DEBUGGER = ${PREFIX}gdb
+
 export DEBUGGER_FLAGS = -x $(RIOTBOARD)/$(BOARD)/dist/$(CPU_MODEL)_gdb.conf $(ELFFILE)
 
 # reset config
 export RESET = $(RIOTBOARD)/$(BOARD)/dist/reset.sh
 export RESET_FLAGS = $(BINDIR)
 
-# Define the flash-tool and default port:
-# TODO: make this flexible
-
-# TODO: what is this even? is it needed
+# debugger config
 export OFLAGS    = -O binary --gap-fill 0xff
 export OBJDUMPFLAGS += --disassemble --source --disassembler-options=force-thumb
 
