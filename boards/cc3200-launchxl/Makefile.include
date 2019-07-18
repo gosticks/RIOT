@@ -42,9 +42,9 @@ else ifeq ($(PROGRAMMER),cc3200prog)
 endif
 
 # debugger config
-export DEBUGGER = ${PREFIX}gdb
+export DEBUGGER = $(RIOTBOARD)/$(BOARD)/dist/debugger.sh #${PREFIX}gdb
 
-export DEBUGGER_FLAGS = -x $(RIOTBOARD)/$(BOARD)/dist/$(CPU_MODEL)_gdb.conf $(ELFFILE)
+export DEBUGGER_FLAGS = $(RIOTBOARD)/$(BOARD)/dist/ $(PREFIX) $(ELFFILE)
 
 # reset config
 export RESET = $(RIOTBOARD)/$(BOARD)/dist/reset.sh
