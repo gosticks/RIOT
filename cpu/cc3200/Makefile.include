@@ -1,14 +1,7 @@
-export CPU_ARCH = cortex-m4
+export CPU_ARCH := cortex-m4
 
 # must be set or the ROM definitions will not be set
 export CFLAGS += -DTARGET_IS_CC3200
-
-export CFLAGS += -DSL_PLATFORM_MULTI_THREADED
-
-# include periph module
-USEMODULE += periph
-
-INCLUDES += -I$(RIOTCPU)/$(CPU)/
 
 # Include make defaults for cortex M-Family CPUs
 include $(RIOTMAKE)/arch/cortexm.inc.mk
