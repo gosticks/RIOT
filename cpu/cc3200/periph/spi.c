@@ -212,7 +212,7 @@ void spi_release(spi_t bus)
 
 uint8_t spi_transfer_byte(spi_t bus, spi_cs_t cs, bool cont, uint8_t out)
 {
-	spi_transfer_bytes(bus, cs, cont, &out, NULL, 1);
+	spi_transfer_bytes(bus, cs, cont, &out, 0, 1);
 	return SPI_OK;
 }
 
@@ -229,7 +229,7 @@ void spi_transfer_bytes(spi_t bus, spi_cs_t cs, bool cont, const void *out,
 		spi(bus)->ch0_conf |= MCSPI_CH0CONF_FORCE;
 	}
 	ROM_SPITransfer((unsigned long)spi(bus), (unsigned char *)out,
-			(unsigned char *)in, len, 0x00000001);
+			(unsigned char *)in, len, 0);
 
 	// if cs was enabled disable it again
 	if (cs != GPIO_UNDEF) {
@@ -239,14 +239,14 @@ void spi_transfer_bytes(spi_t bus, spi_cs_t cs, bool cont, const void *out,
 
 uint8_t spi_transfer_reg(spi_t bus, spi_cs_t cs, uint8_t reg, uint8_t out)
 {
+	(void)cs;
 	if (bus >= SPI_NUMOF) {
 		return -1;
 	}
-	ROM_SPITransfer(spi_config[bus].base_addr, &reg, NULL, 1,
-			cs != SPI_CS_UNDEF);
+	ROM_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
 
 	if (ROM_SPITransfer(spi_config[bus].base_addr, (unsigned char *)&out, 0,
-			    1, cs != SPI_CS_UNDEF)) {
+			    1, 0)) {
 		return -1;
 	}
 	return 1; // success transfer
@@ -255,13 +255,13 @@ uint8_t spi_transfer_reg(spi_t bus, spi_cs_t cs, uint8_t reg, uint8_t out)
 void spi_transfer_regs(spi_t bus, spi_cs_t cs, uint8_t reg, const void *out,
 		       void *in, size_t len)
 {
+	(void)cs;
 	if (bus >= SPI_NUMOF) {
 		return;
 	}
-	ROM_SPITransfer(spi_config[bus].base_addr, &reg, NULL, 1,
-			cs != SPI_CS_UNDEF);
+	ROM_SPITransfer(spi_config[bus].base_addr, &reg, 0, 1, 0);
 	if (ROM_SPITransfer(spi_config[bus].base_addr, (unsigned char *)out,
-			    (unsigned char *)in, len, cs != SPI_CS_UNDEF)) {
+			    (unsigned char *)in, len, 0)) {
 		return;
 	}
 }
