@@ -195,7 +195,7 @@ int gpio_init(gpio_t dev, gpio_mode_t mode)
 	}
 
 	// set strength and drain mode
-	gpio_init_af(dev, PIN_STRENGTH_2MA, mode);
+	gpio_init_af(dev, PIN_STRENGTH_2MA, mode & PAD_TYPE_MASK);
 
 	return 0;
 }
