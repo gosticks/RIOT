@@ -8,5 +8,5 @@ ELFILE=$3
 
 cd ${TOOL_DIR}
 # setup JLink command file
-echo "flashing" ${ELFILE}
+echo "[FLASHING] CC3200: port="${PORT}" file="${ELFILE}
 ./cc3200prog ${PORT} ${ELFILE}
