@@ -1,16 +1,23 @@
 #include "proto.h"
+#include "protocol.h"
 #include <stdbool.h>
 
 // NWP config utils
 void getDeviceInfo(SlVersionFull *ver);
-int16_t getNetConfig(uint8_t configId, uint8_t *configOpt, uint8_t confLen, uint8_t *resp);
-int16_t setNetConfig(uint8_t configId, uint8_t configOpt, uint8_t confLen, uint8_t *payload);
-int16_t setWifiConfig(uint8_t configId, uint8_t configOpt, uint8_t confLen, uint8_t *payload);
+int16_t getNetConfig(uint8_t configId, uint8_t *configOpt, uint8_t confLen,
+                     uint8_t *resp);
+int16_t setNetConfig(uint8_t configId, uint8_t configOpt, uint8_t confLen,
+                     uint8_t *payload);
+int16_t setWifiConfig(uint8_t configId, uint8_t configOpt, uint8_t confLen,
+                      uint8_t *payload);
 int16_t setWifiPolicy(uint8_t type, uint8_t policy);
 int16_t setWifiMode(uint8_t mode);
-int16_t setWlanFilter(uint8_t filterOptions, const uint8_t *const inBuf, uint16_t bufLen);
-
-int16_t sendRawTraceiverData(int16_t sock, uint8_t *buf, int16_t len, int16_t options);
+int16_t setWlanFilter(uint8_t filterOptions, const uint8_t *const inBuf,
+                      uint16_t bufLen);
+int16_t sendTo(int16_t sock, const void *buf, uint16_t len, int16_t flags,
+               SlSockAddr_t *to, uint16_t toLen);
+int16_t sendRawTraceiverData(int16_t sock, void *buf, int16_t len,
+                             int16_t options);
 int16_t recvRawTraceiverData(int16_t sock, void *buf, int16_t bufLen,
                              int16_t options);
 // profile management

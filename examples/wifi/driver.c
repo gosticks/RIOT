@@ -29,15 +29,73 @@ const _SlSyncPattern_t g_H2NSyncPattern = CPU_TO_NET_CHIP_SYNC_PATTERN;
 const _SlSyncPattern_t g_H2NCnysPattern = CPU_TO_NET_CHIP_CNYS_PATTERN;
 static uint32_t TxSeqNum                = 0;
 
+static volatile cc3200_spi_t *wifiReg = (struct cc3200_spi_t *)WIFI_SPI_BASE;
+
 int read(uint8_t *buf, int len)
 {
-    spi_transfer_bytes(1, SPI_CS_UNDEF, false, NULL, buf, len);
+    // spi_transfer_bytes(1, SPI_CS_UNDEF, false, NULL, buf, len);
+    unsigned long ulCnt;
+    unsigned long *ulDataIn;
+
+    ROM_SPICSEnable((int)wifiReg);
+
+    //
+    // Initialize local variable.
+    //
+    ulDataIn = (unsigned long *)buf;
+    ulCnt    = (len + 3) >> 2;
+
+    //
+    // Reading loop
+    //
+    while (ulCnt--) {
+        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_TXS))
+            ;
+        wifiReg->tx0 = 0xFFFFFFFF;
+        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_RXS))
+            ;
+        *ulDataIn = wifiReg->rx0;
+        ulDataIn++;
+    }
+
+    ROM_SPICSDisable((int)wifiReg);
     return len;
 }
 
 int send(uint8_t *in, int len)
 {
-    spi_transfer_bytes(1, SPI_CS_UNDEF, false, in, NULL, len);
+    // spi_transfer_bytes(1, SPI_CS_UNDEF, false, in, NULL, len);
+    unsigned long ulCnt;
+    unsigned long *ulDataOut;
+    unsigned long ulDataIn = 0;
+
+    // enable spi
+    ROM_SPICSEnable(WIFI_SPI_BASE);
+
+    ulDataOut = (unsigned long *)in;
+    ulCnt     = (len + 3) >> 2;
+
+    //
+    // Writing Loop
+    //
+    while (ulCnt--) {
+        // send one word of data
+        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_TXS))
+            ;
+        wifiReg->tx0 = *ulDataOut;
+
+        // read one word of response
+        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_RXS))
+            ;
+        ulDataIn = wifiReg->rx0;
+
+        // increment pointers
+        ulDataOut++;
+    }
+    (void)ulDataIn;
+
+    // disable spi again
+    ROM_SPICSDisable(WIFI_SPI_BASE);
     return len;
 }
 

@@ -22,8 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 #define ENABLE_DEBUG (1)
-// #include "board.h"
 #include "debug.h"
+#include "xtimer.h"
 
 #include "80211.h"
 #include "cmd.h"
@@ -45,7 +45,7 @@ typedef struct SlTimeval_t {
     SlSuseconds_t tv_usec; /* Microseconds */
 } SlTimeval_t;
 
-#define RECEIVER (0)
+#define RECEIVER (1)
 #define WLAN_CHANNEL (13)
 
 /* Address families.  */
@@ -73,6 +73,7 @@ typedef struct SlTimeval_t {
     (106)                  /* Enable sending ACKs in transceiver mode \
                             */
 #define SL_SOL_PHY_OPT (3) /* Define the PHY option category.    */
+#define RAW_RX_TI_PAYLOAD_OFFSET 8
 
 #ifdef ENABLE_DEBUG
 // unsigned char g_ucDMAEnabled = 0;
@@ -80,17 +81,26 @@ void logHardwareVersion(void)
 {
     SlVersionFull ver = { 0 };
     getDeviceInfo(&ver);
-    printf("[WIFI] CC3100 Build Version "
-           "%li.%li.%li.%li.31.%li.%li.%li.%li.%i.%i.%i.%i\n\r",
-           ver.NwpVersion[0], ver.NwpVersion[1], ver.NwpVersion[2],
-           ver.NwpVersion[3], ver.ChipFwAndPhyVersion.FwVersion[0],
-           ver.ChipFwAndPhyVersion.FwVersion[1],
-           ver.ChipFwAndPhyVersion.FwVersion[2],
-           ver.ChipFwAndPhyVersion.FwVersion[3],
-           ver.ChipFwAndPhyVersion.PhyVersion[0],
-           ver.ChipFwAndPhyVersion.PhyVersion[1],
-           ver.ChipFwAndPhyVersion.PhyVersion[2],
-           ver.ChipFwAndPhyVersion.PhyVersion[3]);
+    puts("Netword Module INFO:");
+    printf("\t CHIP: 0x%lx \n", ver.ChipId);
+    printf("\t MAC:  %d.%d.%d.%d\n", ver.FwVersion[0], ver.FwVersion[1],
+           ver.FwVersion[2], ver.FwVersion[3]);
+    printf("\t PHY:  %d.%d.%d.%d\n", ver.PhyVersion[0], ver.PhyVersion[1],
+           ver.PhyVersion[2], ver.PhyVersion[3]);
+    printf("\t NWP:  %d.%d.%d.%d\n", ver.NwpVersion[0], ver.NwpVersion[1],
+           ver.NwpVersion[2], ver.NwpVersion[3]);
+    printf("\t ROM:  %d\n", ver.RomVersion);
+    // printf("[WIFI] CC3100 Build Version "
+    //        "%li.%li.%li.%li.31.%li.%li.%li.%li.%i.%i.%i.%i\n\r",
+    //        ver.NwpVersion[0], ver.NwpVersion[1], ver.NwpVersion[2],
+    //        ver.NwpVersion[3], ver.ChipFwAndPhyVersion.FwVersion[0],
+    //        ver.ChipFwAndPhyVersion.FwVersion[1],
+    //        ver.ChipFwAndPhyVersion.FwVersion[2],
+    //        ver.ChipFwAndPhyVersion.FwVersion[3],
+    //        ver.ChipFwAndPhyVersion.PhyVersion[0],
+    //        ver.ChipFwAndPhyVersion.PhyVersion[1],
+    //        ver.ChipFwAndPhyVersion.PhyVersion[2],
+    //        ver.ChipFwAndPhyVersion.PhyVersion[3]);
 }
 
 void printMacAddr(unsigned char *addr)
@@ -138,23 +148,28 @@ uint8_t acBuffer[1500];
 
 int16_t prepareWifi(void)
 {
-    unsigned char ucVal = 0;
+    unsigned char ucVal = 1;
+    int16_t status      = 0;
     if (setWifiPolicy(SL_POLICY_SCAN, SL_SCAN_POLICY(0)) != 0) {
-        puts("[WIFI] failed to set policy");
+        puts("[WIFI] failed to set scan policy");
     } else {
         puts("[WIFI] policy set");
     }
-    setWifiPolicy(SL_POLICY_CONNECTION, SL_CONNECTION_POLICY(0, 0, 0, 0, 0));
-
-    if (disconnectFromWifi() != 0) {
-        puts("[WIFI] failed to disconnect");
-    } else {
-        puts("[WIFI] disconnected");
+    status = setWifiPolicy(SL_POLICY_CONNECTION,
+                           SL_CONNECTION_POLICY(1, 0, 0, 0, 1));
+    if (status != 0) {
+        DEBUG("failed to set wifi scan policy (%d)\n", status);
+    }
+    status = disconnectFromWifi();
+    if (status != 0) {
+        DEBUG("[WIFI] failed to disconnect (%d)\n", status);
     }
 
     // disable DHCP
-    setNetConfig(4, 1, 1, &ucVal);
-
+    status = setNetConfig(4, 0, 1, &ucVal);
+    if (status != 0) {
+        DEBUG("ERR: failed to disable DHCP (%d)\n", status);
+    }
     // disable scan
     if (setWifiPolicy(SL_POLICY_SCAN, SL_SCAN_POLICY(0)) != 0) {
         puts("[WIFI] failed to set wifi policy");
@@ -163,12 +178,23 @@ int16_t prepareWifi(void)
     // setup wifi power
     // power is a reverse metric (dB)
     uint8_t wifiPower = 0;
-    setWifiConfig(1, 10, 1, &wifiPower);
+    status            = setWifiConfig(1, 10, 1, &wifiPower);
+    if (status != 0) {
+        DEBUG("ERR: failed to set WIFI power (%d)\n", status);
+    }
 
     uint8_t filterConfig[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
     // reset rx filters
-    setWlanFilter(1, filterConfig, sizeof(_WlanRxFilterOperationCommandBuff_t));
-
+    status = setWlanFilter(1, filterConfig,
+                           sizeof(_WlanRxFilterOperationCommandBuff_t));
+    if (status != 0) {
+        DEBUG("ERR: failed to reset wifi filters (%d)\n", status);
+    }
+    // status = deleteProfile(1);
+    // if (status != 0) {
+    //     DEBUG("ERR: failed to delete Wifi connection profiles (%d)\n",
+    //     status);
+    // }
     return 0;
 }
 
@@ -193,10 +219,11 @@ int16_t receiveData(void)
         // sendRawTraceiverData(sock0, (uint8_t *)RawData_Ping,
         // sizeof(RawData_Ping), SL_RAW_RF_TX_PARAMS(13, 1, 0, 0));
         receiveLen = recvRawTraceiverData(sock, acBuffer, 1470, 0);
-        wifi_80211_baseheader *test = (wifi_80211_baseheader *)(acBuffer + 8);
+        wlan_80211_ack_t *ack_frame =
+                (wlan_80211_ack_t *)(acBuffer + RAW_RX_TI_PAYLOAD_OFFSET);
 #ifdef ENABLE_DEBUG
         printf("-> RECV PACKET %d bytes from MAC: ", receiveLen);
-        printMacAddr(test->src);
+        printMacAddr(ack_frame->recv);
 
 #endif
         ROM_UtilsDelay(4000000);
@@ -232,8 +259,6 @@ typedef struct {
     uint32_t timestamp;
 } TransceiverRxOverHead_t;
 
-#define RAW_RX_TI_PAYLOAD_OFFSET 8
-
 void sendFrame(int16_t sock, void *frame, size_t len, uint8_t ch, bool ack)
 {
     uint8_t i;
@@ -256,9 +281,9 @@ void sendFrame(int16_t sock, void *frame, size_t len, uint8_t ch, bool ack)
         for (j = 0; j < 20; j++) {
             recvRawTraceiverData(sock, ack_buffer,
                                  56 + RAW_RX_TI_PAYLOAD_OFFSET, 0);
-            DEBUG("[MAC] Got packet type=%d subtype=%d (%d, %d)  \n",
-                  ack_frame->header.fc.bits.type,
-                  ack_frame->header.fc.bits.subtype, WL_CTRL, WL_ACK);
+            // DEBUG("[MAC] Got packet type=%d subtype=%d (%d, %d)  \n",
+            //   ack_frame->header.fc.bits.type,
+            //   ack_frame->header.fc.bits.subtype, WL_CTRL, WL_ACK);
             // check for ACK frame
             if (ack_frame->header.fc.bits.type == WL_CTRL &&
                 ack_frame->header.fc.bits.subtype == WL_ACK &&
@@ -284,13 +309,13 @@ void recvFrame(int16_t sock, void *frame, size_t len, uint8_t ch)
 
     /* recv frame into buffer */
     recvRawTraceiverData(sock, frame, len, 0);
-    printMacAddr(
-            ((wlan_80211_basic_frame_t *)(frame + RAW_RX_TI_PAYLOAD_OFFSET))
-                    ->recv);
     if (macAddrMatch(
                 ((wlan_80211_basic_frame_t *)(frame + RAW_RX_TI_PAYLOAD_OFFSET))
                         ->recv,
                 state.macAddr)) {
+        printMacAddr(
+                ((wlan_80211_basic_frame_t *)(frame + RAW_RX_TI_PAYLOAD_OFFSET))
+                        ->recv);
         // DEBUG("[MAC] RECV packet for own MAC Addr");
         /* send ack if required by frame type */
         // TODO: check for type, for now always ACK
@@ -320,10 +345,11 @@ int16_t sendData(void)
     DEBUG("SOCKET OPEN: %i \n", sock);
 
     // setSocketOptions(sock0, 3, 20, &timeval, sizeof(timeval));
-    uint32_t Acks = 1;
-    int16_t res   = setSocketOptions(sock, SL_SOL_PHY_OPT, SL_SO_PHY_ALLOW_ACKS,
-                                   &Acks, sizeof(Acks));
-    DEBUG("SOCKET OPTION RESULT %i \n", res);
+    // uint32_t Acks = 1;
+    // int16_t res   = setSocketOptions(sock, SL_SOL_PHY_OPT,
+    // SL_SO_PHY_ALLOW_ACKS,
+    //                                &Acks, sizeof(Acks));
+    // DEBUG("SOCKET OPTION RESULT %i \n", res);
 
     // setSocketOptions(sock0, 1, 20, &timeval, sizeof(timeval));
     uint8_t *buf = acBuffer;
@@ -352,8 +378,8 @@ int16_t sendData(void)
     // compute tag parameter offset
     offset += sizeof(wlan_80211_association_req_t);
 
-    printf("Buffer offset is %d (header size: %d)  \n", offset,
-           sizeof(wlan_80211_association_req_t));
+    // printf("Buffer offset is %d (header size: %d)  \n", offset,
+    //        sizeof(wlan_80211_association_req_t));
 
     // printf("FC: %x, size: %d", (uint16_t *)(&req->header.fc),
     //    sizeof(wlan_80211_frame_control_t));
@@ -370,10 +396,11 @@ int16_t sendData(void)
                               sizeof(supportedRates));
 
     // send association request
-    sendFrame(sock, buf, offset, WLAN_CHANNEL, true);
     while (true) {
-        // recv response
-        recvFrame(sock, acBuffer, 1470, WLAN_CHANNEL);
+        DEBUG("SENDING FRAME \n");
+        sendFrame(sock, buf, offset, WLAN_CHANNEL, true);
+        //     // recv response
+        //     recvFrame(sock, acBuffer, 1470, WLAN_CHANNEL);
     }
 
     ROM_UtilsDelay(400000000);
@@ -384,10 +411,13 @@ int16_t sendData(void)
 }
 #endif
 
+#define SL_IPPROTO_IP (2)  /* Define the IP option category.     */
+#define SL_IP_HDRINCL (67) /* Raw socket IPv4 header included. */
+
 int main(void)
 {
     uint8_t cpuid[CPUID_LEN];
-
+    int16_t status = 0;
     cpuid_get(cpuid);
     printf("You are running RIOT on a(n) %s board.\n", RIOT_BOARD);
     init_wifi();
@@ -396,24 +426,50 @@ int main(void)
 
     // configure wifi module
     prepareWifi();
-    // char *ssid               = "honeypot";
-    // char *pass               = "lurid-jongleur-glom-quit-toilette";
-    // WifiProfileConfig apConf = { .common = { .SecType     = 0,
-    //                                          .SsidLen     = strlen(ssid),
-    //                                          .Priority    = 1,
-    //                                          .PasswordLen = strlen(pass)
-    //                                          },
-    //                              .ssid   = ssid,
-    //                              .key    = pass };
-    // connect(&apConf);
-    // // keept the programm going
+    char *ssid = "iPhone";
+    char *pass = "qwerty1234";
+    WifiProfileConfig apConf = { .common = { .SecType     = SEC_TYPE_WPA_WPA2,
+                                             .SsidLen     = strlen(ssid),
+                                             .Priority    = 1,
+                                             .PasswordLen = strlen(pass),
+                                              },
+                                              .key = pass,
+                                 .ssid   = ssid,
+    };
+    // int16_t profileIndex     = profileAdd(&apConf);
+    // DEBUG("Profile index %i \n", profileIndex);
 
-    // // wait for a connection
-    // while (state.con.connected == 0) {
-    //     puts("waiting for connection");
-    //     ROM_UtilsDelay(30000 * 80 / 3);
-    // }
+    // try getting profile
+    getProfile(0);
 
+    connect(&apConf);
+    // keept the programm going
+
+    printf("[WIFI] waiting for connection to %s", ssid);
+    // wait for a connection
+    while (!state.con.connected) {
+        DEBUG(".");
+        USEC_DELAY(1000);
+    }
+    int enableHeader = 1;
+    int16_t wifi_socket_handle =
+            openSocket(SL_AF_INET, SL_SOCK_RAW, SL_IPPROTO_TCP);
+    DEBUG("OPEN SOCKET %d \n", wifi_socket_handle);
+    setSocketOptions(wifi_socket_handle, SL_IPPROTO_IP, SL_IP_HDRINCL,
+                     &enableHeader, sizeof(enableHeader));
+    char *test = "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST";
+    SlSockAddr_t addr = { 0 };
+    addr.sa_family    = SL_AF_INET6;
+    addr.sa_data[0]   = 0x00;
+    addr.sa_data[1]   = 0x00;
+    // addr.
+    while (true) {
+        status = sendTo(wifi_socket_handle, test, strlen(test), 0, &addr,
+                        sizeof(addr));
+        DEBUG("SEND S*** (%d)\n", status);
+        // xtimer_sleep(2);
+        USEC_DELAY(9000000);
+    }
 #if RECEIVER
     receiveData();
 #else

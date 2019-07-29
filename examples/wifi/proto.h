@@ -128,6 +128,12 @@ typedef struct CC3200_RomInfo {
     uint16_t ucYear;
 } CC3200_RomInfo;
 
+typedef enum wlan_security_t {
+    SEC_TYPE_OPEN = 0,
+    SEC_TYPE_WEP,
+    SEC_TYPE_WPA_WPA2,
+} wlan_security_t;
+
 typedef struct WifiProfileConfig {
     _WlanAddGetProfile_t common;
     // base station name
@@ -137,6 +143,12 @@ typedef struct WifiProfileConfig {
     // char user[MAX_USER_LEN];
 
 } WifiProfileConfig;
+
+/* IpV4 socket address */
+typedef struct SlSockAddr_t {
+    uint16_t sa_family;  /* Address family (e.g. , AF_INET)     */
+    uint8_t sa_data[14]; /* Protocol- specific address information*/
+} SlSockAddr_t;
 
 typedef struct {
     _SlGenericHeader_t GenHeader;
@@ -169,13 +181,9 @@ typedef struct cc3200_SpiStatusReg {
 
 typedef struct {
     uint32_t ChipId;
-    uint32_t FwVersion[4];
+    uint8_t FwVersion[4];
     uint8_t PhyVersion[4];
-} _SlPartialVersion;
-
-typedef struct {
-    _SlPartialVersion ChipFwAndPhyVersion;
-    uint32_t NwpVersion[4];
+    uint8_t NwpVersion[4];
     uint16_t RomVersion;
     uint16_t Padding;
 } SlVersionFull;

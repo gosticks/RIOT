@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
@@ -43,7 +44,7 @@ uint32_t getSPIBitRate(void)
         return SPI_RATE_20M;
     } else {
         /* CC3200 (ver > 1.3.2) */
-        return SPI_RATE_30M;
+        return SPI_RATE_20M;
     }
 }
 
@@ -178,7 +179,6 @@ void powerOnWifi(void)
 
     /* Clear host IRQ indication */
     HWREG(N2A_INT_ACK) = 1;
-
     /* NWP Wake-up */
     ARCM->APPS_TO_NWP_WAKE_REQUEST = WAKENWP_WAKEREQ;
 
@@ -307,7 +307,6 @@ void defaultCommandHandler(cc3200_SlResponseHeader *header)
  */
 void wifiRxHandler(void *value)
 {
-    DEBUG("RX HANDLER!!!\n");
     (void)value;
     // if (value != NULL) {
     //   puts(value);
@@ -351,26 +350,26 @@ int initWifiModule(void)
     // ROM_uDMAChannelDisable(UDMA_CH12_LSPI_RX);
     // ROM_uDMAChannelDisable(UDMA_CH13_LSPI_TX);
 
-    powerOnWifi();
-    uint8_t buf[256];
-    memset(buf, 0, sizeof(buf));
-    DEBUG("BEFORE? %d \n", ((_SlGenericHeader_t *)buf)->Opcode);
-    read(buf, 256);
-    for (int i = 0; i < 16; i++) {
-        for (int j = 0; j < 16; j++) {
-            printf("%02x ", buf[i * 16 + j]);
-        }
-        printf("\n");
-    }
-    DEBUG("HEADER? %x \n", ((_SlGenericHeader_t *)buf)->Opcode);
+    // uint8_t buf[256];
+    // memset(buf, 0, sizeof(buf));
+    // DEBUG("BEFORE? %d \n", ((_SlGenericHeader_t *)buf)->Opcode);
+    // read(buf, 256);
+    // for (int i = 0; i < 16; i++) {
+    //     for (int j = 0; j < 16; j++) {
+    //         printf("%02x ", buf[i * 16 + j]);
+    //     }
+    //     printf("\n");
+    // }
+    // DEBUG("HEADER? %x \n", ((_SlGenericHeader_t *)buf)->Opcode);
     volatile DriverRequest r = { .Opcode         = 0x0008,
                                  .Waiting        = true,
                                  .DescBufferSize = 0 };
     addToQueue(&r);
+
+    powerOnWifi();
     DEBUG("WAITING FOR RETURN \n");
-    DEBUG(".");
     while (r.Waiting) {
-        // DEBUG("WHAT WHAT WHAT WHAT \n");
+        printf(".");
     }
     puts("[WIFI] setup completed");
     return 0;
@@ -401,7 +400,7 @@ int initWifiSPI(void)
 int setupWifiModule(void)
 {
     // DEBUG("sending power on preamble \n");
-    // sendPowerOnPreamble();
+    sendPowerOnPreamble();
     DEBUG("init wifi spi \n");
     if (initWifiSPI() != 0) {
         puts("failed to init wifi spi module");
