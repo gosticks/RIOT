@@ -31,7 +31,7 @@
 #include "vendor/hw_types.h"
 #include "vendor/rom.h"
 
-#define ENABLE_DEBUG (1)
+#define ENABLE_DEBUG (0)
 #include "debug.h"
 
 #define LOAD_VALUE (0xffff)
@@ -43,13 +43,13 @@ static timer_isr_ctx_t isr_ctx[TIMER_NUMOF];
 
 /**
  * @brief get timer control register by ID. Each register is 0x1000 apart
- * starting at 0x40030000
+ * starting at TIMERA0_BASE
  *
  *
  */
 static inline cc3200_timer_t *timer(tim_t num)
 {
-    return (cc3200_timer_t *)(0x40030000 + (num << 12));
+    return (cc3200_timer_t *)(TIMERA0_BASE + (num << 12));
 }
 
 /**
@@ -74,29 +74,32 @@ static void timer_irq_handler(tim_t dev)
     isr_ctx[dev].cb(isr_ctx[dev].arg, 0); /* timer has one hw channel */
     cortexm_isr_end();
 }
+
+#ifdef TIMER_0_EN
 void isr_timer0(void)
 {
-    timer_irq_handler(TIMER_0_EN);
+    timer_irq_handler(0);
 }
+#endif
 
 #ifdef TIMER_1_EN
 void isr_timer1(void)
 {
-    timer_irq_handler(TIMER_1_EN);
+    timer_irq_handler(1);
 }
 #endif
 
 #ifdef TIMER_2_EN
 void isr_timer2(void)
 {
-    timer_irq_handler(TIMER_2_EN);
+    timer_irq_handler(2);
 }
 #endif
 
 #ifdef TIMER_3_EN
 void isr_timer3(void)
 {
-    timer_irq_handler(TIMER_3_EN);
+    timer_irq_handler(3);
 }
 #endif
 
@@ -109,18 +112,20 @@ void isr_timer3(void)
 static inline void *get_irq_handler(tim_t dev)
 {
     switch (dev) {
-    case TIMER_0_EN:
+#ifdef TIMER_0_EN
+    case 0:
         return isr_timer0;
+#endif
 #ifdef TIMER_1_EN
-    case TIMER_1_EN:
+    case 1:
         return isr_timer1;
 #endif
 #ifdef TIMER_2_EN
-    case TIMER_2_EN:
+    case 2:
         return isr_timer2;
 #endif
 #ifdef TIMER_3_EN
-    case TIMER_3_EN:
+    case 3:
         return isr_timer3;
 #endif
     default:
@@ -214,7 +219,9 @@ int timer_clear(tim_t dev, int channel)
     if (dev >= TIMER_NUMOF || channel > 0) {
         return -1;
     }
+
     ROM_TimerIntClear((uint32_t)timer(dev), TIMER_TIMA_MATCH);
+
     /* disable the match timer */
     timer(dev)->intr_mask &= ~(TIMER_TIMA_MATCH);
     return 0;

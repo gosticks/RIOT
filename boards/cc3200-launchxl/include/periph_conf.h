@@ -16,8 +16,8 @@
  * @author      Wladislaw Meixner <wladislaw.meixner@campus.lmu.de>
  */
 
-#ifndef PERIPH_CONF_H_
-#define PERIPH_CONF_H_
+#ifndef PERIPH_CONF_H
+#define PERIPH_CONF_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,10 +33,10 @@ extern "C" {
 #define CLOCK_CORECLOCK (80000000U) /* desired core clock frequency */
 
 /*  CC3200 has 4 timer blocks */
-#define TIMER_0_EN 0
+#define TIMER_0_EN 1
 #define TIMER_1_EN 1
-#define TIMER_2_EN 2
-#define TIMER_3_EN 3
+#define TIMER_2_EN 1
+#define TIMER_3_EN 1
 
 /**
  * @brief number of timer blocks
@@ -111,5 +111,5 @@ static const uart_conf_t uart_config[] = {
 } /* end extern "C" */
 #endif
 
-#endif /* PERIPH_CONF_H_ */
+#endif /* PERIPH_CONF_H */
 /** @} */

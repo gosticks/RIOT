@@ -37,15 +37,17 @@ static gpio_isr_ctx_t isr_ctx[4][8];
 
 #define GPIO_PINS_PER_PORT 8     /**< Number of pins per port */
 #define GPIO_DIR_MASK 0x00000001 /**< GPIO direction configuration mask */
-#define PIN_MODE_GPIO \
-    0x00000000 /**< GPIO Pin type value used to configure pin to GPIO */
+
+/**
+ * GPIO Pin type value used to configure pin to GPIO
+ */
+#define PIN_MODE_GPIO 0x00000000
+
 #define PAD_MODE_MASK 0x0000000F /**< GPIO mask for setting pin mode */
-#define PAD_STRENGTH_MASK                              \
-    0x000000E0 /**< GPIO mask for setting pin strength \
-                */
-#define PAD_TYPE_MASK                                        \
-    0x00000310 /**< GPIO mask for setting pin type e.g. PULL \
-                */
+/* GPIO mask for setting pin strength */
+#define PAD_STRENGTH_MASK 0x000000E0
+/* GPIO mask for setting pin type e.g. PULL */
+#define PAD_TYPE_MASK 0x00000310
 #define PAD_CONFIG_BASE ((OCP_SHARED_BASE + OCP_SHARED_O_GPIO_PAD_CONFIG_0))
 
 /**
@@ -66,7 +68,7 @@ static unsigned long ports[] = { GPIOA0_BASE, GPIOA1_BASE, GPIOA2_BASE,
  * @brief pin to GPIO pin numbers mappings
  *
  */
-static const unsigned long pin_to_gpio_num[64] = {
+static const uint8_t pin_to_gpio_num[64] = {
     10,  11,  12,  13,  14,  15,  16,  17,  255, 255, 18,  19,  20,
     21,  22,  23,  24,  40,  28,  29,  25,  255, 255, 255, 255, 255,
     255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,

@@ -32,17 +32,6 @@ extern "C" {
 #endif
 
 /**
- * @brief convert x usecs to cpu cycles
- *
- */
-#define USEC_TO_CPU_CYCLES(x) (80 * x) / 3
-/**
- * @brief delay CPU for x uSec
- *
- */
-#define USEC_DELAY(x) ROM_UtilsDelay(USEC_TO_CPU_CYCLES(x))
-
-/**
  * @brief uSec delay for reading some Power Control Module Values
  *
  */
@@ -92,8 +81,10 @@ extern "C" {
  * @{
  */
 typedef struct cc3200_arcm_reg_t {
-    cc3200_reg_t clk_gating;
-    cc3200_reg_t soft_reset;
+    cc3200_reg_t clk_gating; /**< clock gating register. Used to configure clock
+                                mode. */
+    cc3200_reg_t soft_reset; /**< software reset register. Used to enable
+                                ordisable hardware. */
 } cc3200_arcm_reg_t;
 /** @} */
 
@@ -134,11 +125,16 @@ typedef struct cc3200_arcm_t {
     cc3200_arcm_reg_t MCSPI_S0; /**< Integrated CC3100 SPI ARMC register */
     cc3200_reg_t MCSPI_S0_CLKDIV_CFG;   /**< Integrated CC3100 SPI Configuration
                                          */
+    cc3200_reg_t RESERVED5[1];          /**< RESERVED */
     cc3200_arcm_reg_t I2C;              /**< I2C Clock ARCM register */
+    cc3200_reg_t RESERVED6[1];          /**< RESERVED */
     cc3200_reg_t APPS_LPDS_REQ;         /**< APPS_LPDS_REQ */
+    cc3200_reg_t RESERVED7[1];          /**< RESERVED */
     cc3200_reg_t APPS_TURBO_REQ;        /**< APPS_TURBO_REQ */
+    cc3200_reg_t RESERVED8[6];          /**< RESERVED */
     cc3200_reg_t APPS_DSLP_WAKE_CONFIG; /**< APPS_DSLP_WAKE_CONFIG */
-    cc3200_reg_t APPS_DSLP_WAKE_TIMER_CFG;  /**< APPS_DSLP_WAKE_TIMER_CFG */
+    cc3200_reg_t APPS_DSLP_WAKE_TIMER_CFG;  /**< APPS_DSLP_WAKE_TIMER_CFG
+                                             */
     cc3200_reg_t APPS_RCM_SLP_WAKE_ENABLE;  /**< APPS_RCM_SLP_WAKE_ENABLE */
     cc3200_reg_t APPS_SLP_WAKETIMER_CFG;    /**< APPS_SLP_WAKETIMER_CFG */
     cc3200_reg_t APPS_TO_NWP_WAKE_REQUEST;  /**< APPS_TO_NWP_WAKE_REQUEST */
@@ -146,9 +142,11 @@ typedef struct cc3200_arcm_t {
     cc3200_reg_t APPS_RCM_INTERRUPT_ENABLE; /**< APPS_RCM_INTERRUPT_ENABLE */
 } cc3200_arcm_t;
 
-#define ARCM                                                              \
-    ((cc3200_arcm_t *)ARCM_BASE) /**< One and only instance of the System \
-                    Control module */
+/**
+ * @brief One and only instance of the System Control module
+ *
+ */
+#define ARCM ((cc3200_arcm_t *)ARCM_BASE)
 /** @} */
 
 /**
@@ -229,14 +227,13 @@ typedef struct cc3200_gprcm_t {
     cc3200_reg_t REF_FSM_DEBUG;              /**< REF_FSM_DEBUG */
     cc3200_reg_t MEM_SYS_OPP_REQ_OVERRIDE;   /**< MEM_SYS_OPP_REQ_OVERRIDE */
     cc3200_reg_t MEM_TESTCTRL_PD_OPP_CONFIG; /**< MEM_TESTCTRL_PD_OPP_CONFIG */
-    cc3200_reg_t MEM_WL_FAST_CLK_REQ_OVERRIDES; /**<
-                                                   MEM_WL_FAST_CLK_REQ_OVERRIDES
-                                                 */
-    cc3200_reg_t MEM_MCU_PD_MODE_REQ_OVERRIDES; /**<
-                                                   MEM_MCU_PD_MODE_REQ_OVERRIDES
-                                                 */
-    cc3200_reg_t
-            MEM_MCSPI_SRAM_OFF_REQ_OVERRIDES; /**<
+    cc3200_reg_t MEM_WL_FAST_CLK_REQ_OVERRIDES;    /**<
+                                                      MEM_WL_FAST_CLK_REQ_OVERRIDES
+                                                    */
+    cc3200_reg_t MEM_MCU_PD_MODE_REQ_OVERRIDES;    /**<
+                                                      MEM_MCU_PD_MODE_REQ_OVERRIDES
+                                                    */
+    cc3200_reg_t MEM_MCSPI_SRAM_OFF_REQ_OVERRIDES; /**<
                                                  MEM_MCSPI_SRAM_OFF_REQ_OVERRIDES
                                                */
     cc3200_reg_t MEM_WLAN_APLLMCS_OVERRIDES;  /**< MEM_WLAN_APLLMCS_OVERRIDES */
@@ -315,9 +312,10 @@ typedef struct cc3200_gprcm_t {
     cc3200_reg_t SSDIO_PSCON_OVERRIDES;      /**< SSDIO_PSCON_OVERRIDES */
 } cc3200_gprcm_t;
 
-#define GPRCM                                                          \
-    ((cc3200_gprcm_t *)GPRCM_BASE) /**< One and only instance of the G \
-                      Power Control Module */
+/**
+ * @brief One and only instance of the General Power Control * Module
+ */
+#define GPRCM ((cc3200_gprcm_t *)GPRCM_BASE)
 
 /** @} */
 #ifdef __cplusplus
