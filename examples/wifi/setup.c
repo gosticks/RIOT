@@ -44,7 +44,7 @@ uint32_t getSPIBitRate(void)
         return SPI_RATE_20M;
     } else {
         /* CC3200 (ver > 1.3.2) */
-        return SPI_RATE_20M;
+        return SPI_RATE_30M;
     }
 }
 
@@ -317,7 +317,7 @@ void wifiRxHandler(void *value)
     // only use default handler after that
 
     cc3200_SlResponseHeader cmd;
-    readCmdHeader(&cmd);
+    read_cmd_header(&cmd);
     defaultCommandHandler(&cmd);
 
     cortexm_isr_end();
@@ -367,9 +367,8 @@ int initWifiModule(void)
     addToQueue(&r);
 
     powerOnWifi();
-    DEBUG("WAITING FOR RETURN \n");
+    DEBUG("[WIFI] waiting for network connection \n");
     while (r.Waiting) {
-        printf(".");
     }
     puts("[WIFI] setup completed");
     return 0;
@@ -400,7 +399,7 @@ int initWifiSPI(void)
 int setupWifiModule(void)
 {
     // DEBUG("sending power on preamble \n");
-    sendPowerOnPreamble();
+    graceful_nwp_shutdown();
     DEBUG("init wifi spi \n");
     if (initWifiSPI() != 0) {
         puts("failed to init wifi spi module");
@@ -423,7 +422,7 @@ int setupWifiModule(void)
     // get mac address
     getNetConfig(SL_MAC_ADDRESS_GET, NULL, 8, (unsigned char *)state.macAddr);
 
-    // sendPowerOnPreamble();
+    // graceful_nwp_shutdown();
     // if (initWifiModule() != 0) {
     //   puts("failed to start wifi module");
     //   return -1;

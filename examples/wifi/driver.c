@@ -1,6 +1,9 @@
+#include "vendor/hw_adc.h"
+#include "vendor/hw_common_reg.h"
 #include "vendor/hw_ints.h"
 #include "vendor/hw_mcspi.h"
 #include "vendor/hw_memmap.h"
+#include "vendor/hw_ocp_shared.h"
 #include "vendor/hw_types.h"
 #include "vendor/hw_udma.h"
 #include "vendor/rom.h"
@@ -8,15 +11,9 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
-// #include "cc3200_spi.h"
 #include "periph/spi.h"
-// #include "driverlib/interrupt.h"
-// #include "driverlib/pin.h"
-// #include "driverlib/prcm.h"
-// #include "driverlib/rom_map.h"
-// #include "driverlib/spi.h"
-// #include "driverlib/utils.h"
 
+#include "driver.h"
 #include "proto.h"
 #include "protocol.h"
 #include "setup.h"
@@ -25,95 +22,80 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-const _SlSyncPattern_t g_H2NSyncPattern = CPU_TO_NET_CHIP_SYNC_PATTERN;
-const _SlSyncPattern_t g_H2NCnysPattern = CPU_TO_NET_CHIP_CNYS_PATTERN;
-static uint32_t TxSeqNum                = 0;
+/**
+ * @brief Transmission sequence number send initially set by NWP
+ *
+ */
+static uint32_t TxSeqNum = 0;
 
-static volatile cc3200_spi_t *wifiReg = (struct cc3200_spi_t *)WIFI_SPI_BASE;
+const _SlSyncPattern_t CPU_TO_NWP_SYNC_PATTERN = CPU_TO_NET_CHIP_SYNC_PATTERN;
+const _SlSyncPattern_t CPU_TO_NWP_CNYS_PATTERN = CPU_TO_NET_CHIP_CNYS_PATTERN;
 
-int read(uint8_t *buf, int len)
+/**
+ * @brief Validate if sync frame is valid:
+ *  - validate SYNC_PATTERN
+ *  - If N2H_SYNC_PATTERN_SEQ_NUM_EXISTS set validate
+ *
+ * @param buf
+ */
+static inline bool match_sync_pattern(uint32_t *sync_frame)
 {
-    // spi_transfer_bytes(1, SPI_CS_UNDEF, false, NULL, buf, len);
-    unsigned long ulCnt;
-    unsigned long *ulDataIn;
-
-    ROM_SPICSEnable((int)wifiReg);
-
-    //
-    // Initialize local variable.
-    //
-    ulDataIn = (unsigned long *)buf;
-    ulCnt    = (len + 3) >> 2;
-
-    //
-    // Reading loop
-    //
-    while (ulCnt--) {
-        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_TXS))
-            ;
-        wifiReg->tx0 = 0xFFFFFFFF;
-        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_RXS))
-            ;
-        *ulDataIn = wifiReg->rx0;
-        ulDataIn++;
+    if (*sync_frame & NWP_SYNC_PATTERN_SEQ_NUM_SET) {
+        return MATCH_WITH_SEQ_NUM(sync_frame, TxSeqNum);
+    } else {
+        return MATCH_WOUT_SEQ_NUM(sync_frame);
     }
+    return false;
+}
 
-    ROM_SPICSDisable((int)wifiReg);
+/**
+ * @brief read data from NWP SPI
+ *
+ * @param buf read destination buffer
+ * @param len length of bytes to be read (must be a multiple of word length)
+ * @return int returns bytes read
+ */
+int read(void *buf, int len)
+{
+    spi_transfer_bytes(1, SPI_CS_UNDEF, false, NULL, buf, len);
     return len;
 }
 
-int send(uint8_t *in, int len)
+/**
+ * @brief send content of buffer buf to the NWP using SPI
+ *
+ * @param buf buffer to be send
+ * @param len length in bytes to be send (must be a multiple of word length)
+ * @return int bytes written to SPI
+ */
+int send(const void *buf, int len)
 {
-    // spi_transfer_bytes(1, SPI_CS_UNDEF, false, in, NULL, len);
-    unsigned long ulCnt;
-    unsigned long *ulDataOut;
-    unsigned long ulDataIn = 0;
-
-    // enable spi
-    ROM_SPICSEnable(WIFI_SPI_BASE);
-
-    ulDataOut = (unsigned long *)in;
-    ulCnt     = (len + 3) >> 2;
-
-    //
-    // Writing Loop
-    //
-    while (ulCnt--) {
-        // send one word of data
-        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_TXS))
-            ;
-        wifiReg->tx0 = *ulDataOut;
-
-        // read one word of response
-        while (!(wifiReg->ch0_stat & MCSPI_CH0STAT_RXS))
-            ;
-        ulDataIn = wifiReg->rx0;
-
-        // increment pointers
-        ulDataOut++;
-    }
-    (void)ulDataIn;
-
-    // disable spi again
-    ROM_SPICSDisable(WIFI_SPI_BASE);
+    spi_transfer_bytes(1, SPI_CS_UNDEF, false, buf, NULL, len);
     return len;
 }
 
-int _readCmdHeader(uint8_t *buf, uint8_t *align)
+/**
+ * @brief read command header with sync and TxSeqNum validation
+ *
+ * @param buf destination buffer
+ * @param align
+ * @return int
+ */
+int read_cmd_header(cc3200_SlResponseHeader *buf)
 {
-    // write sync
-    send((uint8_t *)&g_H2NCnysPattern.Short, sizeof(uint32_t));
+    /* write sync */
+    send(&CPU_TO_NWP_CNYS_PATTERN.Short, sizeof(uint32_t));
 
     uint32_t SyncCnt = 0;
 
     // read 4 bytes
     read(buf, 4);
-    while (!N2H_SYNC_PATTERN_MATCH(buf, TxSeqNum)) {
+    while (!match_sync_pattern((uint32_t *)buf)) {
         if (0 == (SyncCnt % (uint32_t)4)) {
             read(&buf[4], 4);
         }
 
-        sliceFirstInBuffer(buf, 8);
+        sliceFirstInBuffer((uint8_t *)buf, 8);
         SyncCnt++;
     }
 
@@ -126,7 +108,8 @@ int _readCmdHeader(uint8_t *buf, uint8_t *align)
         read(buf, 4);
     }
 
-    while (N2H_SYNC_PATTERN_MATCH(buf, TxSeqNum)) {
+    /* read till sync pattern is found */
+    while (match_sync_pattern((uint32_t *)buf)) {
         read(buf, 4);
     }
     TxSeqNum++;
@@ -134,59 +117,70 @@ int _readCmdHeader(uint8_t *buf, uint8_t *align)
     /*  7. Here we've read Generic Header (4 bytes). Read the Resp Specific
      * header (4 more bytes). */
     read(&buf[4], 4);
-    *align = (uint8_t)((SyncCnt > 0) ? (4 - SyncCnt) : 0);
+
+    /* read reamainder on the SPI bus */
+    // uint32_t alignBuf;
+    read(buf, (uint8_t)((SyncCnt > 0) ? (4 - SyncCnt) : 0));
     return 0;
 }
 
-int readCmdHeader(cc3200_SlResponseHeader *resp)
-{
-    uint8_t align;
-    _readCmdHeader((uint8_t *)resp, &align);
+// int read_cmd_header(cc3200_SlResponseHeader *resp)
+// {
+//     uint8_t align;
+//     _read_cmd_header((uint8_t *)resp, &align);
 
-    // read up to the next aligned byte
-    read((uint8_t *)&resp, align);
-    return 0;
+//     // read up to the next aligned byte
+
+//     return 0;
+// }
+
+void send_header(_SlGenericHeader_t *header)
+{
+    send(header, sizeof(_SlGenericHeader_t));
 }
 
-void sendShortSync(void)
+/**
+ * @brief send a short SYNC command to the NWP. This is send before every
+ * command to notify NWP of incoming data
+ *
+ */
+void send_short_sync(void)
 {
-    send((uint8_t *)&g_H2NSyncPattern.Short, sizeof(uint32_t));
+    send(&CPU_TO_NWP_SYNC_PATTERN.Short, sizeof(uint32_t));
 }
 
-void sendHeader(_SlGenericHeader_t *header)
+/**
+ * @brief quit all services and power off nwp
+ *
+ */
+// NOTE: probably one of the registers is missaligned right now
+void graceful_nwp_shutdown(void)
 {
-    send((uint8_t *)header, sizeof(_SlGenericHeader_t));
-}
+    /* turn of all network services */
+    HWREG(COMMON_REG_BASE + ADC_O_ADC_CH_ENABLE) = 1;
 
-void sendPowerOnPreamble(void)
-{
-    unsigned int sl_stop_ind, apps_int_sts_raw, nwp_lpds_wake_cfg;
-    unsigned int retry_count;
-    /* Perform the sl_stop equivalent to ensure network services
-       are turned off if active */
-    HWREG(0x400F70B8) = 1; /* APPs to NWP interrupt */
     ROM_UtilsDelay(800000 / 5);
 
-    retry_count       = 0;
-    nwp_lpds_wake_cfg = HWREG(0x4402D404);
-    sl_stop_ind       = HWREG(0x4402E16C);
-
-    if ((nwp_lpds_wake_cfg != 0x20) && /* Check for NWP POR condition */
-        !(sl_stop_ind & 0x2))          /* Check if sl_stop was executed */
-    {
+    /* check if NWP was powered of or is in some Low Power Deep Sleep state */
+    if ((GPRCM->NWP_LPDS_WAKEUP_CFG != 0x20) &&
+        !(HWREG(OCP_SHARED_BASE + OCP_SHARED_O_SPARE_REG_5) & 0x2)) {
+        uint16_t retry_count = 0;
         /* Loop until APPs->NWP interrupt is cleared or timeout */
         while (retry_count < 1000) {
-            apps_int_sts_raw = HWREG(0x400F70C0);
-            if (apps_int_sts_raw & 0x1) {
-                ROM_UtilsDelay(800000 / 5);
-                retry_count++;
-            } else {
+            /* interrupt gets cleared when NWP has powered on */
+            if (!(HWREG(COMMON_REG_BASE + COMMON_REG_O_APPS_INT_STS_RAW) &
+                  0x1)) {
                 break;
             }
+            ROM_UtilsDelay(800000 / 5);
+            retry_count++;
         }
     }
-    HWREG(0x400F70B0) = 1; /* Clear APPs to NWP interrupt */
+
+    /* Clear APPs to NWP interrupt */
+    HWREG(COMMON_REG_BASE + ADC_O_adc_ch7_fifo_lvl) = 1;
     ROM_UtilsDelay(800000 / 5);
 
+    /* power of NWP */
     powerOffWifi();
 }
