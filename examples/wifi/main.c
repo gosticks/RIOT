@@ -75,6 +75,8 @@ typedef struct SlTimeval_t {
 #define SL_SOL_PHY_OPT (3) /* Define the PHY option category.    */
 #define RAW_RX_TI_PAYLOAD_OFFSET 8
 
+static uint8_t acBuffer[1500];
+
 #ifdef ENABLE_DEBUG
 // unsigned char g_ucDMAEnabled = 0;
 void logHardwareVersion(void)
@@ -144,19 +146,23 @@ void init_wifi(void)
 #endif
 }
 
-uint8_t acBuffer[1500];
-
 int16_t prepareWifi(void)
 {
     unsigned char ucVal = 1;
     int16_t status      = 0;
+
+    /* disconnect from network */
+    status = deleteProfile(0xFF);
+    if (status != 0) {
+        DEBUG("ERR: failed to delete Wifi connection profiles (%d)\n", status);
+    }
     if (setWifiPolicy(SL_POLICY_SCAN, SL_SCAN_POLICY(0)) != 0) {
         puts("[WIFI] failed to set scan policy");
     } else {
         puts("[WIFI] policy set");
     }
     status = setWifiPolicy(SL_POLICY_CONNECTION,
-                           SL_CONNECTION_POLICY(1, 0, 0, 0, 1));
+                           SL_CONNECTION_POLICY(0, 0, 0, 0, 0));
     if (status != 0) {
         DEBUG("failed to set wifi scan policy (%d)\n", status);
     }
@@ -190,49 +196,9 @@ int16_t prepareWifi(void)
     if (status != 0) {
         DEBUG("ERR: failed to reset wifi filters (%d)\n", status);
     }
-    // status = deleteProfile(1);
-    // if (status != 0) {
-    //     DEBUG("ERR: failed to delete Wifi connection profiles (%d)\n",
-    //     status);
-    // }
-    return 0;
-}
-
-#if RECEIVER == 1
-int16_t receiveData(void)
-{
-    int16_t receiveLen = 0;
-
-    // struct SlTimeval_t timeval;
-    // timeval.tv_sec = 0;      // Seconds
-    // timeval.tv_usec = 20000; // Microseconds.
-
-    // get a socket
-    int16_t sock = openSocket(SL_AF_RF, SL_SOCK_DGRAM, WLAN_CHANNEL);
-    if (sock < 0) {
-        return sock;
-    }
-
-    DEBUG("SOCKET OPEN: %i \n", sock);
-
-    while (1) {
-        // sendRawTraceiverData(sock0, (uint8_t *)RawData_Ping,
-        // sizeof(RawData_Ping), SL_RAW_RF_TX_PARAMS(13, 1, 0, 0));
-        receiveLen = recvRawTraceiverData(sock, acBuffer, 1470, 0);
-        wlan_80211_ack_t *ack_frame =
-                (wlan_80211_ack_t *)(acBuffer + RAW_RX_TI_PAYLOAD_OFFSET);
-#ifdef ENABLE_DEBUG
-        printf("-> RECV PACKET %d bytes from MAC: ", receiveLen);
-        printMacAddr(ack_frame->recv);
-
-#endif
-        ROM_UtilsDelay(4000000);
-        gpio_toggle(LED_ORANGE);
-    }
 
     return 0;
 }
-#endif
 
 static inline bool macAddrMatch(unsigned char *a, unsigned char *b)
 {
@@ -242,7 +208,6 @@ static inline bool macAddrMatch(unsigned char *a, unsigned char *b)
            !((uint16_t)a[0] - (uint16_t)b[0]);
 }
 
-#if !RECEIVER
 uint8_t setTagParameter(uint8_t *buf, uint8_t number, void *val, size_t len)
 {
     buf[0] = number;
@@ -259,7 +224,7 @@ typedef struct {
     uint32_t timestamp;
 } TransceiverRxOverHead_t;
 
-void sendFrame(int16_t sock, void *frame, size_t len, uint8_t ch, bool ack)
+uint8_t sendFrame(int16_t sock, void *frame, size_t len, uint8_t ch, bool ack)
 {
     uint8_t i;
     uint8_t j;
@@ -275,7 +240,7 @@ void sendFrame(int16_t sock, void *frame, size_t len, uint8_t ch, bool ack)
                              SL_RAW_RF_TX_PARAMS(ch, 1, 0, 0));
         /* if we dont need an ACK just return  */
         if (!ack) {
-            return;
+            return 0;
         }
         // check for ACK
         for (j = 0; j < 20; j++) {
@@ -290,14 +255,17 @@ void sendFrame(int16_t sock, void *frame, size_t len, uint8_t ch, bool ack)
                 macAddrMatch(ack_frame->recv, state.macAddr)) {
                 DEBUG("GOT ACK \n");
 
-                return;
+                return 0;
                 // if mac address matches
             }
         }
     }
+    return 1;
 }
 
-void recvFrame(int16_t sock, void *frame, size_t len, uint8_t ch)
+/* recvFrame reads the next incoming MAC frame from NWP, 0 is retuned if MAC
+ * Addr matches device, -1 if not. */
+int16_t recvFrame(int16_t sock, void *frame, size_t len, uint8_t ch, bool ack)
 {
     wlan_80211_ack_t ack_frame;
     ack_frame.header.duration = 0x40;
@@ -309,16 +277,16 @@ void recvFrame(int16_t sock, void *frame, size_t len, uint8_t ch)
 
     /* recv frame into buffer */
     recvRawTraceiverData(sock, frame, len, 0);
-    if (macAddrMatch(
+
+    if (!macAddrMatch(
                 ((wlan_80211_basic_frame_t *)(frame + RAW_RX_TI_PAYLOAD_OFFSET))
                         ->recv,
                 state.macAddr)) {
-        printMacAddr(
-                ((wlan_80211_basic_frame_t *)(frame + RAW_RX_TI_PAYLOAD_OFFSET))
-                        ->recv);
-        // DEBUG("[MAC] RECV packet for own MAC Addr");
-        /* send ack if required by frame type */
-        // TODO: check for type, for now always ACK
+        return -1;
+    }
+
+    /* send ack if required by frame type */
+    if (ack) {
         memcpy(ack_frame.recv,
                ((wlan_80211_basic_frame_t *)(frame + RAW_RX_TI_PAYLOAD_OFFSET))
                        ->src,
@@ -329,152 +297,214 @@ void recvFrame(int16_t sock, void *frame, size_t len, uint8_t ch)
                              SL_RAW_RF_TX_PARAMS(ch, 1, 0, 0));
         DEBUG("[MAC] ACK SEND \n");
     }
-}
-
-char *text = "HELLO THERE";
-
-int16_t sendData(void)
-{
-    // int16_t sendLen = 0;
-    // get a socket
-    int16_t sock = openSocket(6, 2, WLAN_CHANNEL);
-    if (sock < 0) {
-        return sock;
-    }
-
-    DEBUG("SOCKET OPEN: %i \n", sock);
-
-    // setSocketOptions(sock0, 3, 20, &timeval, sizeof(timeval));
-    // uint32_t Acks = 1;
-    // int16_t res   = setSocketOptions(sock, SL_SOL_PHY_OPT,
-    // SL_SO_PHY_ALLOW_ACKS,
-    //                                &Acks, sizeof(Acks));
-    // DEBUG("SOCKET OPTION RESULT %i \n", res);
-
-    // setSocketOptions(sock0, 1, 20, &timeval, sizeof(timeval));
-    uint8_t *buf = acBuffer;
-    // TransceiverRxOverHead_t *frameRadioHeader = NULL;
-    uint8_t offset = 0;
-    // write association request data into buffer
-    wlan_80211_association_req_t *req = (wlan_80211_association_req_t *)buf;
-    // reset header value
-    req->header.fc.raw          = 0x0000;
-    req->header.fc.bits.version = 0x00;
-    req->header.fc.bits.type    = WL_DATA;
-    req->header.fc.bits.subtype = as_req;
-    req->header.duration        = 0x190;
-    uint8_t recvAddr[6]         = { 0x54, 0xe6, 0xfc, 0x94, 0x5d, 0xb9 };
-    memcpy(&req->recv, recvAddr, 6);
-    // memcpy(&req->header.transmitter, state.macAddr, 6);
-    memcpy(&req->src, state.macAddr, 6);
-    memcpy(&req->bssid, recvAddr, 6);
-
-    // set capability info
-    req->cap_info = 0x3143;
-
-    // set listen interval
-    req->listen_interval = 0x3;
-
-    // compute tag parameter offset
-    offset += sizeof(wlan_80211_association_req_t);
-
-    // printf("Buffer offset is %d (header size: %d)  \n", offset,
-    //        sizeof(wlan_80211_association_req_t));
-
-    // printf("FC: %x, size: %d", (uint16_t *)(&req->header.fc),
-    //    sizeof(wlan_80211_frame_control_t));
-
-    // add association ssid request
-    char *ssid = "skynet";
-    offset += setTagParameter(&buf[offset], 0, ssid, strlen(ssid));
-
-    // set supported rates
-    uint8_t supportedRates[8] = {
-        0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24
-    };
-    offset += setTagParameter(&buf[offset], 1, supportedRates,
-                              sizeof(supportedRates));
-
-    // send association request
-    while (true) {
-        DEBUG("SENDING FRAME \n");
-        sendFrame(sock, buf, offset, WLAN_CHANNEL, true);
-        //     // recv response
-        //     recvFrame(sock, acBuffer, 1470, WLAN_CHANNEL);
-    }
-
-    ROM_UtilsDelay(400000000);
-    gpio_toggle(LED_ORANGE);
-    //}
-
     return 0;
 }
-#endif
+
+int16_t recvOwnFrame(int16_t sd, void *frame, size_t len, uint8_t ch, bool ack,
+                     int16_t retries)
+{
+    for (uint8_t i = 0; i < retries; i++) {
+        if (recvFrame(sd, frame, len, ch, ack) == 0) {
+            return 0;
+        }
+    }
+    return -1;
+}
 
 #define SL_IPPROTO_IP (2)  /* Define the IP option category.     */
 #define SL_IP_HDRINCL (67) /* Raw socket IPv4 header included. */
 
+/* Forward declarations */
+int16_t start_pairing(int16_t sd);
+
 int main(void)
 {
-    uint8_t cpuid[CPUID_LEN];
     int16_t status = 0;
-    cpuid_get(cpuid);
     printf("You are running RIOT on a(n) %s board.\n", RIOT_BOARD);
     init_wifi();
     puts("wifi init completed !");
     printDeviceMacAddr();
-
-    // configure wifi module
-    prepareWifi();
-    char *ssid = "iPhone";
-    char *pass = "qwerty1234";
-    WifiProfileConfig apConf = { .common = { .SecType     = SEC_TYPE_WPA_WPA2,
-                                             .SsidLen     = strlen(ssid),
-                                             .Priority    = 1,
-                                             .PasswordLen = strlen(pass),
-                                              },
-                                              .key = pass,
-                                 .ssid   = ssid,
-    };
-    // int16_t profileIndex     = profileAdd(&apConf);
+    deleteProfile(0);
+    deleteProfile(1);
+    // // configure wifi module
+    // prepareWifi();
+    // char *ssid = "skynet";
+    // // char *pass = "qwerty1234";
+    // WifiProfileConfig apConf = { .common = { .SecType     = SEC_TYPE_OPEN,
+    //                                          .SsidLen     = strlen(ssid),
+    //                                          .Priority    = 1,
+    //                                          .PasswordLen = 0,
+    //                                           },
+    //                                           .key = NULL,
+    //                              .ssid   = ssid,
+    // };
+    // int16_t profileIndex = profileAdd(&apConf);
     // DEBUG("Profile index %i \n", profileIndex);
 
-    // try getting profile
-    getProfile(0);
-
-    connect(&apConf);
-    // keept the programm going
-
-    printf("[WIFI] waiting for connection to %s", ssid);
-    // wait for a connection
-    while (!state.con.connected) {
-        DEBUG(".");
-        USEC_DELAY(1000);
+    // // try getting profile
+    // status = getProfile(profileIndex);
+    // if (status != 0) {
+    //     DEBUG("ERR: failed to get wifi profile \n");
+    // }
+    // status = connect(&apConf);
+    // if (status != 0) {
+    //     DEBUG("ERR: failed to send connect request \n");
+    // }
+    // printf("[WIFI] waiting for connection to %s", ssid);
+    // // wait for a connection
+    // while (!state.con.connected) {
+    //     DEBUG(".");
+    //     USEC_DELAY(1000);
+    // }
+    // int enableHeader = 1;
+    // int16_t wifi_socket_handle =
+    //         openSocket(SL_AF_INET, SL_SOCK_RAW, SL_IPPROTO_TCP);
+    // DEBUG("OPEN SOCKET %d \n", wifi_socket_handle);
+    // setSocketOptions(wifi_socket_handle, SL_IPPROTO_IP, SL_IP_HDRINCL,
+    //                  &enableHeader, sizeof(enableHeader));
+    // char *test = "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST
+    // TEST"; SlSockAddr_t addr = { 0 }; addr.sa_family    = SL_AF_INET6;
+    // addr.sa_data[0]   = 0x00;
+    // addr.sa_data[1]   = 0x00;
+    // // addr.
+    // while (true) {
+    //     status = sendTo(wifi_socket_handle, test, strlen(test), 0, &addr,
+    //                     sizeof(addr));
+    //     DEBUG("SEND S*** (%d)\n", status);
+    //     // xtimer_sleep(2);
+    //     USEC_DELAY(9000000);
+    // }
+    int16_t sd = openSocket(SL_AF_RF, SL_SOCK_RAW, WLAN_CHANNEL);
+    if (sd < 0) {
+        return sd;
     }
-    int enableHeader = 1;
-    int16_t wifi_socket_handle =
-            openSocket(SL_AF_INET, SL_SOCK_RAW, SL_IPPROTO_TCP);
-    DEBUG("OPEN SOCKET %d \n", wifi_socket_handle);
-    setSocketOptions(wifi_socket_handle, SL_IPPROTO_IP, SL_IP_HDRINCL,
-                     &enableHeader, sizeof(enableHeader));
-    char *test = "TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST TEST";
-    SlSockAddr_t addr = { 0 };
-    addr.sa_family    = SL_AF_INET6;
-    addr.sa_data[0]   = 0x00;
-    addr.sa_data[1]   = 0x00;
-    // addr.
-    while (true) {
-        status = sendTo(wifi_socket_handle, test, strlen(test), 0, &addr,
-                        sizeof(addr));
-        DEBUG("SEND S*** (%d)\n", status);
-        // xtimer_sleep(2);
-        USEC_DELAY(9000000);
+    // start broadcasting connection signal
+    status = start_pairing(sd);
+    if (status != 0) {
+        DEBUG("ERR: failed to pair \n");
     }
-#if RECEIVER
-    receiveData();
-#else
-    sendData();
-#endif
+    DEBUG("Pairing completed \n");
 
     return 0;
+}
+
+typedef struct test_beacon_frame {
+    wlan_80211_header_common_t header;
+    unsigned char recv[6];  // receiver MAC
+    unsigned char src[6];   // source MAC
+    unsigned char bssid[6]; // bssid MAC
+    uint16_t len;           // padding
+} test_beacon_frame;
+
+typedef struct test_beacon_response {
+    wlan_80211_header_common_t header;
+    unsigned char recv[6]; // receiver MAC
+    unsigned char src[6];  // source MAC
+    uint8_t magic;         // a magic number full of magic
+} test_beacon_response;
+
+#define CUSTOM_PROTO_VERSION \
+    3 /**< unused MAC version 3 to identify our custom protocol */
+
+#define BEACON_BUF_SIZE RAW_RX_TI_PAYLOAD_OFFSET + sizeof(test_beacon_frame)
+
+int16_t start_pairing(int16_t sd)
+{
+    bool connected = false;
+    /* beacon starts at RAW_RX_TI_PAYLOAD_OFFSET offset, since TI prefixes
+     * metric info before every data frame */
+    while (!connected) {
+        /* make sure buffer is clear */
+        memset(acBuffer, 0, BEACON_BUF_SIZE);
+#if RECEIVER
+
+        /* listen for incoming beacons */
+        for (int16_t i = 0; i < 100; i++) {
+            DEBUG("[WLP]: listening for beacons (%d/100) \n", i + 1);
+            /* read network frame into buffer (driver takes care of reading only
+             * BEACON_BUF_SIZE or less of incoming frame) */
+            recvRawTraceiverData(sd, acBuffer, 1400, 0);
+            test_beacon_frame *beacon =
+                    (test_beacon_frame *)(acBuffer + RAW_RX_TI_PAYLOAD_OFFSET);
+            // DEBUG("TO ");
+            // printMacAddr(beacon->recv);
+            // DEBUG("FROM ");
+            // printMacAddr(beacon->src);
+            // DEBUG("TEST: VER: %d TYPE: %d SUBTYPE %d, %p, %p \n",
+            //       beacon->header.fc.bits.version,
+            //       beacon->header.fc.bits.type,
+            //       beacon->header.fc.bits.subtype, beacon, acBuffer);
+            /* check for custom protocol header */
+            if (beacon->header.fc.bits.version == CUSTOM_PROTO_VERSION &&
+                beacon->header.fc.bits.type == WL_DATA &&
+                beacon->header.fc.bits.subtype == WL_BEACON) {
+                // DEBUG("OK: found mesh partner \n");
+                test_beacon_response *res   = (void *)acBuffer;
+                res->header.fc.raw          = 0;
+                res->header.fc.bits.version = CUSTOM_PROTO_VERSION;
+                res->header.fc.bits.type    = WL_DATA;
+                res->header.fc.bits.subtype = WL_BEACON;
+
+                /* copy dest addr */
+                memcpy(&res->recv, beacon->src, 6);
+                /* copy device mac address */
+                memcpy(&res->src, state.macAddr, 6);
+
+                res->magic = 27;
+
+                /* send response */
+                if (sendFrame(sd, res, sizeof(test_beacon_response),
+                              WLAN_CHANNEL, true) != 0) {
+                    DEBUG("ERR: failed to send Association response.");
+                }
+                return 0;
+            }
+        }
+
+#else
+
+        test_beacon_frame *beacon = (test_beacon_frame *)acBuffer;
+        uint8_t respBuf[sizeof(test_beacon_response) + RAW_RX_TI_PAYLOAD_OFFSET];
+        char *data     = "FUCK FUCK FUCK";
+        size_t dataLen = 0;
+
+        memset(beacon, 0, BEACON_BUF_SIZE);
+        // DEBUG("[WLP]: sending beacons (%d/20) \n", i + 1);
+        beacon->header.fc.raw          = 0x00;
+        beacon->header.fc.bits.version = CUSTOM_PROTO_VERSION;
+        beacon->header.fc.bits.type    = WL_DATA;
+        beacon->header.fc.bits.subtype = WL_BEACON;
+        beacon->header.duration        = 0x40;
+        beacon->len                    = strlen(data);
+        dataLen += sizeof(test_beacon_frame) + beacon->len;
+        memcpy((void *)(beacon + beacon->len), data, beacon->len);
+        // /* copy device mac address */
+        memcpy(&beacon->src, state.macAddr, 6);
+        DEBUG("SENDING %d bytes \n", dataLen);
+        // /* set dest to broadcast */
+        memset(&beacon->recv, 0xFF, 6);
+        /* if no beacon found send some beacons */
+        for (uint16_t i = 0; i < 1000; i++) {
+            sendFrame(sd, beacon, dataLen, WLAN_CHANNEL, false);
+            recvOwnFrame(sd, respBuf,
+                         sizeof(test_beacon_response) +
+                                 RAW_RX_TI_PAYLOAD_OFFSET,
+                         WLAN_CHANNEL, true, 1);
+            /* check if response is valid */
+            test_beacon_response *res =
+                    (test_beacon_response *)(respBuf +
+                                             RAW_RX_TI_PAYLOAD_OFFSET);
+
+            if (res->header.fc.bits.version == CUSTOM_PROTO_VERSION &&
+                res->header.fc.bits.type == WL_MNG &&
+                res->header.fc.bits.subtype == as_req) {
+                DEBUG("GOT VALID ASSO RESPONSE: MAGIC(%d)", res->magic);
+                return 0;
+            }
+        }
+
+#endif
+    }
+
+    return 1;
 }
