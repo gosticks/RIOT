@@ -387,7 +387,6 @@ typedef struct {
 typedef struct {
     _i16 status;
     _u16 padding;
-
 } _BasicResponse_t;
 
 typedef struct {

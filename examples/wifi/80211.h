@@ -25,7 +25,7 @@ typedef enum {
     probe_resp,    /**< Probe Response */
     timing_add,    /**< Timing Advertisement */
     reserved_1,    /**< Reserved */
-    beacon,        /**< Beacon */
+    WL_BEACON,     /**< Beacon */
     atim,          /**< ATIM */
     dias,          /**< disassociation */
     auth,          /**< Authentication */

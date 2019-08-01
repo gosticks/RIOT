@@ -32,58 +32,13 @@
 #define OCP_SHARED_MAC_RESET_REG 0x4402E168
 #define ROM_VERSION_ADDR 0x00000400
 
-// TODO: maybe remove
-#define INT_PRIORITY_LVL_0 0x00
-#define INT_PRIORITY_LVL_1 0x20
-#define INT_PRIORITY_LVL_2 0x40
-#define INT_PRIORITY_LVL_3 0x60
-#define INT_PRIORITY_LVL_4 0x80
-#define INT_PRIORITY_LVL_5 0xA0
-#define INT_PRIORITY_LVL_6 0xC0
-#define INT_PRIORITY_LVL_7 0xE0
-
 // SPI SPEEDS
 #define SPI_RATE_13M 13000000
 #define SPI_RATE_20M 20000000
 #define SPI_RATE_30M 30000000
 
-#define CPU_TO_NET_CHIP_SYNC_PATTERN   \
-    {                                  \
-        0xBBDDEEFF, 0x4321, 0x34, 0x12 \
-    }
-#define CPU_TO_NET_CHIP_CNYS_PATTERN   \
-    {                                  \
-        0xBBDDEEFF, 0x8765, 0x78, 0x56 \
-    }
-
 #define mscpi_reg uint32_t
 #define wifi_opcode uint16_t
-
-// Wifi module comunication utils
-#define N2H_SYNC_PATTERN_SEQ_NUM_BITS \
-    ((uint32_t)0x00000003) /* Bits 0..1    - use the 2 LBS for seq num */
-#define N2H_SYNC_PATTERN_SEQ_NUM_EXISTS                                       \
-    ((uint32_t)0x00000004) /* Bit  2       - sign that sequence number exists \
-                              in the sync pattern */
-#define N2H_SYNC_PATTERN_MASK \
-    ((uint32_t)0xFFFFFFF8) /* Bits 3..31   - constant SYNC PATTERN */
-#define N2H_SYNC_SPI_BUGS_MASK                                             \
-    ((uint32_t)0x7FFF7F7F) /* Bits 7,15,31 - ignore the SPI (8,16,32 bites \
-                              bus) error bits  */
-#define BUF_SYNC_SPIM(pBuf) ((*(uint32_t *)(pBuf)) & N2H_SYNC_SPI_BUGS_MASK)
-#define N2H_SYNC_SPIM (N2H_SYNC_PATTERN & N2H_SYNC_SPI_BUGS_MASK)
-#define N2H_SYNC_SPIM_WITH_SEQ(TxSeqNum)       \
-    ((N2H_SYNC_SPIM & N2H_SYNC_PATTERN_MASK) | \
-     N2H_SYNC_PATTERN_SEQ_NUM_EXISTS |         \
-     ((TxSeqNum) & (N2H_SYNC_PATTERN_SEQ_NUM_BITS)))
-#define MATCH_WOUT_SEQ_NUM(pBuf) (BUF_SYNC_SPIM(pBuf) == N2H_SYNC_SPIM)
-#define MATCH_WITH_SEQ_NUM(pBuf, TxSeqNum) \
-    (BUF_SYNC_SPIM(pBuf) == (N2H_SYNC_SPIM_WITH_SEQ(TxSeqNum)))
-#define N2H_SYNC_PATTERN_MATCH(pBuf, TxSeqNum)                    \
-    (((*((uint32_t *)pBuf) & N2H_SYNC_PATTERN_SEQ_NUM_EXISTS) &&  \
-      (MATCH_WITH_SEQ_NUM(pBuf, TxSeqNum))) ||                    \
-     (!(*((uint32_t *)pBuf) & N2H_SYNC_PATTERN_SEQ_NUM_EXISTS) && \
-      (MATCH_WOUT_SEQ_NUM(pBuf))))
 
 #define SL_RAW_RF_TX_PARAMS_CHANNEL_SHIFT (0)
 #define SL_RAW_RF_TX_PARAMS_RATE_SHIFT (6)
