@@ -40,10 +40,10 @@ uint32_t getSPIBitRate(void)
 {
     /* Check NWP generation */
     if ((GPRCM->GPRCM_DIEID_READ_REG4 >> 24) & 0x02) {
-        /* CC3220 (ver > 1.3.2) */
+        /* CC3200 (ver > 1.3.2) */
         return SPI_RATE_20M;
     } else {
-        /* CC3200 (ver > 1.3.2) */
+        /* CC3220 and newer */
         return SPI_RATE_30M;
     }
 }

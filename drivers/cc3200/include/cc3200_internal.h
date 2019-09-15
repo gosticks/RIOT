@@ -1,3 +1,4 @@
+#include <stdint.h>
 
 // SPI SPEEDS
 #define SPI_RATE_13M 13000000
@@ -45,3 +46,51 @@
 #define SL_LOW_POWER_POLICY (2)
 #define SL_ALWAYS_ON_POLICY (3)
 #define SL_LONG_SLEEP_INTERVAL_POLICY (4)
+
+/* maximum number of commands in driver operation queue */
+#define REQUEST_QUEUE_SIZE 1
+
+/* RX Irqn handler type */
+typedef void (*cc3200_rx_irqn_handler)(void);
+#define cc3200_rx_irqn_handler cc3200_rx_irqn_handler
+
+typedef struct cc3200_drv_con_info_t {
+    uint8_t type; // type of current connection
+    uint8_t ssidLen;
+    uint8_t ssid[32];
+    uint8_t bssid[6];
+    bool connected;
+} cc3200_drv_con_info_t;
+
+/**
+ * @brief current driver state object
+ *
+ */
+typedef struct cc3200_drv_state_t {
+    uint8_t curReqCount;
+    volatile struct cc3200_drv_req_t *requestQueue[REQUEST_QUEUE_SIZE];
+    // connection info
+    struct cc3200_drv_con_info_t con;
+    unsigned char macAddr[8];
+} cc3200_drv_state_t;
+
+/**
+ * @brief driver request object
+ *
+ */
+typedef struct cc3200_drv_req_t {
+    uint8_t ID;
+    uint16_t Opcode;
+
+    // response description buffers
+    uint8_t *DescBuffer;
+    uint16_t DescBufferSize;
+
+    // Payload buffers
+    uint8_t *PayloadBuffer;
+    uint16_t PayloadBufferSize;
+
+    // current request state
+    bool Waiting;
+
+} cc3200_drv_req_t;

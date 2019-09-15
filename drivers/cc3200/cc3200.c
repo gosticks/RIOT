@@ -8,6 +8,13 @@
 
 void graceful_nwp_shutdown(void);
 
+/**
+ * @brief cc3200_setup resets the network processor (NWP)
+ * and sets up an SPI connection far later interactions
+ *
+ * @param dev
+ * @param params
+ */
 void cc3200_setup(cc3200_t *dev, const cc3200_params_t *params)
 {
     /* shutdown nwp subsystem first */
@@ -22,6 +29,13 @@ void cc3200_setup(cc3200_t *dev, const cc3200_params_t *params)
     spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, bit_rate);
 }
 
+/**
+ * @brief cc3200_init performs NWP initialization leaving the device ready for
+ * future commands after this call returns
+ *
+ * @param dev
+ * @return int
+ */
 int cc3200_init(cc3200_t *dev)
 {
     return 0;
