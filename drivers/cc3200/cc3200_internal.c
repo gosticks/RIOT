@@ -1,9 +1,26 @@
+#include "vendor/hw_apps_rcm.h"
+#include "vendor/hw_ocp_shared.h"
+#include "vendor/rom.h"
+
+#include "cpu.h"
+
 #include "include/cc3200_internal.h"
 #include "include/cc3200_protocol.h"
 #include <stdbool.h>
 #include <stddef.h>
 
 #define ENABLE_DEBUG (1)
+#include "debug.h"
+
+#define N2A_INT_ACK (COMMON_REG_BASE + COMMON_REG_O_NW_INT_ACK)
+/* WAKENWP - (ARCM_BASE + APPS_RCM_O_APPS_TO_NWP_WAKE_REQUEST)
+    - Bits 31:01 - Reserved
+    - Bits 00    - Wake Request to NWP
+*/
+#define WAKENWP_WAKEREQ \
+    (APPS_RCM_APPS_TO_NWP_WAKE_REQUEST_APPS_TO_NWP_WAKEUP_REQUEST)
+#define NWP_SPARE_REG_5 (OCP_SHARED_BASE + OCP_SHARED_O_SPARE_REG_5)
+#define NWP_SPARE_REG_5_SLSTOP (0x00000002)
 
 // TODO: finetune this shared buffer and maybe move it to dev
 static uint8_t sharedBuffer[512];
@@ -17,6 +34,61 @@ cc3200_drv_state_t state = { .requestQueue = { NULL },
 void cc3200_add_to_drv_queue(volatile cc3200_drv_req_t *req);
 uint8_t cc3200_remove_from_drv_queue(volatile cc3200_drv_req_t *req);
 void cc3200_nwp_rx_handler(void *value);
+void cc3200_cmd_handler(cc3200_nwp_resp_header_t *header);
+
+/**
+ * @brief mask and unmask NWP data interrupt
+ *
+ */
+static inline void mask_nwp_rx_irqn(void)
+{
+    (*(unsigned long *)N2A_INT_MASK_SET) = 0x1;
+}
+static inline void unmask_nwp_rx_irqn(void)
+{
+    (*(unsigned long *)N2A_INT_MASK_CLR) = 0x1;
+}
+
+/**
+ * @brief register irqn handler
+ *
+ * @param handler to be registered
+ */
+static inline void cc3200_register_nwp_rx_irqn(cc3200_rx_irqn_handler handler)
+{
+    ROM_IntRegister(INT_NWPIC, handler);
+    ROM_IntPrioritySet(INT_NWPIC, 0x20);
+    ROM_IntPendClear(INT_NWPIC);
+    ROM_IntEnable(INT_NWPIC);
+}
+
+/**
+ * @brief cc3200_unregister_nwp_rx_irqn unregisters NWP rx irqn handler
+ *
+ */
+static inline void cc3200_unregister_nwp_rx_irqn(void)
+{
+    ROM_IntDisable(INT_NWPIC);
+    ROM_IntUnregister(INT_NWPIC);
+    ROM_IntPendClear(INT_NWPIC);
+}
+
+void cc3200_nwp_power_on(void)
+{
+    /* bring the 1.32 eco out of reset */
+    HWREG(NWP_SPARE_REG_5) &= ~NWP_SPARE_REG_5_SLSTOP;
+
+    /* Clear host IRQ indication */
+    HWREG(N2A_INT_ACK) = 1;
+    /* NWP Wake-up */
+    ARCM->APPS_TO_NWP_WAKE_REQUEST = WAKENWP_WAKEREQ;
+
+    // UnMask Host interrupt
+    unmask_nwp_rx_irqn();
+
+    DEBUG("POWER ON COMPLETED \n");
+}
+
 /**
  * @brief power on nwp, register RX irqn handler and await nwp response
  *
@@ -33,9 +105,9 @@ int cc3200_init_nwp(void)
     volatile cc3200_drv_req_t r = { .Opcode         = 0x0008,
                                     .Waiting        = true,
                                     .DescBufferSize = 0 };
-    addToQueue(&r);
+    cc3200_add_to_drv_queue(&r);
 
-    powerOnWifi();
+    cc3200_nwp_power_on();
     DEBUG("[WIFI] waiting for NWP power on response\n");
     // TODO: add a timeout
     while (r.Waiting) {
@@ -55,8 +127,8 @@ void cc3200_nwp_rx_handler(void *value)
     // handledIrqsCount++;
     mask_nwp_rx_irqn();
 
-    cc3200_SlResponseHeader cmd;
-    read_cmd_header(&cmd);
+    cc3200_nwp_resp_header_t cmd;
+    cc3200_read_cmd_header(&cmd);
     cc3200_cmd_handler(&cmd);
 
     cortexm_isr_end();
@@ -64,12 +136,12 @@ void cc3200_nwp_rx_handler(void *value)
 
 /**
  * @brief cc3200_cmd_handler handles requested driver command responses
- * @param header 
+ * @param header
  */
-void cc3200_cmd_handler(cc3200_SlResponseHeader *header)
+void cc3200_cmd_handler(cc3200_nwp_resp_header_t *header)
 {
     DEBUG("[NWP] RECV: \033[1;32m%x \033[0m, len=%d\n",
-          header->GenHeader.Opcode, header->GenHeader.Len);
+          header->GenHeader.opcode, header->GenHeader.len);
 
     volatile cc3200_drv_req_t *req = NULL;
 
@@ -77,44 +149,45 @@ void cc3200_cmd_handler(cc3200_SlResponseHeader *header)
     // its buffer to avoid having to copy the data
     for (uint8_t i = 0; state.curReqCount != 0 && i < REQUEST_QUEUE_SIZE; i++) {
         if (state.requestQueue[i] == NULL ||
-            state.requestQueue[i]->Opcode != header->GenHeader.Opcode) {
+            state.requestQueue[i]->Opcode != header->GenHeader.opcode) {
             continue;
         }
         req          = state.requestQueue[i];
         req->Waiting = false;
-        removeFromQueue(state.requestQueue[i]);
+        cc3200_remove_from_drv_queue(state.requestQueue[i]);
     }
 
     // when we have a request read the buffer to the request
     if (req != NULL) {
-        int16_t remainder = header->GenHeader.Len - req->DescBufferSize;
+        int16_t remainder = header->GenHeader.len - req->DescBufferSize;
         if (remainder < 0) {
             remainder = 0;
         }
         if (req->DescBufferSize > 0 && remainder >= 0) {
-            read(req->DescBuffer, req->DescBufferSize);
+            cc3200_read_from_nwp(req->DescBuffer, req->DescBufferSize);
         }
 
         // payload can sometimes be smaller then expected
         if (remainder < req->PayloadBufferSize) {
             // DEBUG("NWP: Read payload %d bytes \n", (remainder + 3) & ~0x03);
-            read(req->PayloadBuffer, (remainder + 3) & ~0x03);
+            cc3200_read_from_nwp(req->PayloadBuffer, (remainder + 3) & ~0x03);
             remainder = 0;
         } else {
             remainder -= req->PayloadBufferSize;
             // DEBUG("NWP: Read payload %d bytes \n", req->PayloadBufferSize);
             if (req->PayloadBufferSize > 0 && remainder >= 0) {
-                read(req->PayloadBuffer, req->PayloadBufferSize);
+                cc3200_read_from_nwp(req->PayloadBuffer,
+                                     req->PayloadBufferSize);
             }
         }
 
         // read all remaining data
         if (remainder > 0) {
-            read(sharedBuffer, remainder);
+            cc3200_read_from_nwp(sharedBuffer, remainder);
         }
     } else {
         // otherwise read everything into shared buffer;
-        read(sharedBuffer, header->GenHeader.Len);
+        cc3200_read_from_nwp(sharedBuffer, header->GenHeader.len);
     }
 
     // handle commands
@@ -128,30 +201,6 @@ void cc3200_cmd_handler(cc3200_SlResponseHeader *header)
     // }
 
     unmask_nwp_rx_irqn();
-}
-
-/**
- * @brief register irqn handler
- *
- * @param handler to be registered
- */
-static inline cc3200_register_nwp_rx_irqn(cc3200_rx_irqn_handler handler)
-{
-    ROM_IntRegister(INT_NWPIC, hanlder);
-    ROM_IntPrioritySet(INT_NWPIC, 0x20);
-    ROM_IntPendClear(INT_NWPIC);
-    ROM_IntEnable(INT_NWPIC);
-}
-
-/**
- * @brief cc3200_unregister_nwp_rx_irqn unregisters NWP rx irqn handler
- *
- */
-static inline cc3200_unregister_nwp_rx_irqn(void)
-{
-    ROM_IntDisable(INT_NWPIC);
-    ROM_IntUnregister(INT_NWPIC);
-    ROM_IntPendClear(INT_NWPIC);
 }
 
 /**
@@ -186,13 +235,4 @@ uint8_t cc3200_remove_from_drv_queue(volatile cc3200_drv_req_t *req)
         }
     }
     return 0;
-}
-
-static inline void mask_nwp_rx_irqn(void)
-{
-    (*(unsigned long *)N2A_INT_MASK_SET) = 0x1;
-}
-static inline void unmask_nwp_rx_irqn(void)
-{
-    (*(unsigned long *)N2A_INT_MASK_CLR) = 0x1;
 }

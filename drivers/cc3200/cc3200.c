@@ -1,10 +1,22 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
+#include "periph/spi.h"
+
 #include "include/cc3200.h"
-#include "include/cc3200_params.h"
+// #include "include/cc3200_params.h"
 #include "vendor/hw_common_reg.h"
 #include "vendor/hw_memmap.h"
+#include "vendor/rom.h"
+
+#include "include/cc3200_internal.h"
+
+#define ADC_O_ADC_CH_ENABLE 0x000000B8
+#define COMMON_REG_BASE 0x400F7000
+#define OCP_SHARED_O_SPARE_REG_5 0x0000016C
+#define ADC_O_adc_ch7_fifo_lvl \
+    0x000000B0 // Channel 7 interrupt status
+               // register
 
 void graceful_nwp_shutdown(void);
 
@@ -17,6 +29,8 @@ void graceful_nwp_shutdown(void);
  */
 void cc3200_setup(cc3200_t *dev, const cc3200_params_t *params)
 {
+    (void)dev;
+    (void)params;
     /* shutdown nwp subsystem first */
     graceful_nwp_shutdown();
 
@@ -38,6 +52,7 @@ void cc3200_setup(cc3200_t *dev, const cc3200_params_t *params)
  */
 int cc3200_init(cc3200_t *dev)
 {
+    (void)dev;
     return 0;
 }
 
@@ -74,5 +89,5 @@ void graceful_nwp_shutdown(void)
     ROM_UtilsDelay(800000 / 5);
 
     /* power of NWP */
-    powerOffWifi();
+    // powerOffWifi();
 }

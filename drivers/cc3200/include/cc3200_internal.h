@@ -1,4 +1,7 @@
+#include <stdbool.h>
 #include <stdint.h>
+
+#include "cc3200_protocol.h"
 
 // SPI SPEEDS
 #define SPI_RATE_13M 13000000
@@ -94,3 +97,7 @@ typedef struct cc3200_drv_req_t {
     bool Waiting;
 
 } cc3200_drv_req_t;
+
+int cc3200_read_from_nwp(void *buf, int len);
+int cc3200_send_to_nwp(const void *buf, int len);
+int cc3200_read_cmd_header(cc3200_nwp_resp_header_t *buf);

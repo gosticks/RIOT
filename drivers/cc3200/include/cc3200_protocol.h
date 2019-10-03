@@ -2,11 +2,65 @@
 #ifndef CC3200_WIFI_PROTO
 #define CC3200_WIFI_PROTO
 
-#include "protocol.h"
+// #include "protocol.h"
 #include "vendor/hw_common_reg.h"
 #include "vendor/hw_memmap.h"
 
 #include <stdint.h>
+
+#define H2N_DUMMY_PATTERN (uint32_t)0xFFFFFFFF
+#define N2H_SYNC_PATTERN (uint32_t)0xABCDDCBA
+#define SYNC_PATTERN_LEN (uint32_t)sizeof(uint32_t)
+#define UART_SET_MODE_MAGIC_CODE (uint32_t)0xAA55AA55
+#define SPI_16BITS_BUG(pattern) \
+    (uint32_t)((uint32_t)pattern & (uint32_t)0xFFFF7FFF)
+#define SPI_8BITS_BUG(pattern) \
+    (uint32_t)((uint32_t)pattern & (uint32_t)0xFFFFFF7F)
+
+/**
+ * @brief SYNC and CNYS patterns used to establish communication with NWP
+ * @{
+ */
+#define N2H_SYNC_PATTERN_SEQ_NUM_BITS \
+    0x00000003 /**< 0-2 least significant bits used for seq num over SPI */
+#define NWP_SYNC_PATTERN_SEQ_NUM_SET                                    \
+    ((uint32_t)0x00000004) /* Flag that sequence number present in sync \
+                              pattern */
+#define N2H_SYNC_PATTERN_MASK \
+    ((uint32_t)0xFFFFFFF8) /* Bits 3 to 31 - constant SYNC PATTERN */
+#define N2H_SYNC_SPI_BUGS_MASK                                             \
+    ((uint32_t)0x7FFF7F7F) /* Bits 7,15,31 - ignore the SPI (8,16,32 bites \
+                              bus) error bits  */
+#define BUF_SYNC_SPIM(pBuf) ((*(uint32_t *)(pBuf)) & N2H_SYNC_SPI_BUGS_MASK)
+#define N2H_SYNC_SPIM (N2H_SYNC_PATTERN & N2H_SYNC_SPI_BUGS_MASK)
+
+#define N2H_SYNC_SPIM_WITH_SEQ(TxSeqNum)                                      \
+    ((N2H_SYNC_SPIM & N2H_SYNC_PATTERN_MASK) | NWP_SYNC_PATTERN_SEQ_NUM_SET | \
+     ((TxSeqNum) & (N2H_SYNC_PATTERN_SEQ_NUM_BITS)))
+
+/**
+ * @brief Match sync frame with sequence number
+ *
+ */
+#define MATCH_WITH_SEQ_NUM(pBuf, TxSeqNum) \
+    (BUF_SYNC_SPIM(pBuf) == (N2H_SYNC_SPIM_WITH_SEQ(TxSeqNum)))
+/**
+ * @brief Match sync frame without sequence number
+ *
+ */
+#define MATCH_WOUT_SEQ_NUM(pBuf) (BUF_SYNC_SPIM(pBuf) == N2H_SYNC_SPIM)
+
+/* Sync pattern between CPU and NWP */
+#define CPU_TO_NET_CHIP_SYNC_PATTERN   \
+    {                                  \
+        0xBBDDEEFF, 0x4321, 0x34, 0x12 \
+    }
+
+/* CNYS Pattern */
+#define CPU_TO_NET_CHIP_CNYS_PATTERN   \
+    {                                  \
+        0xBBDDEEFF, 0x8765, 0x78, 0x56 \
+    }
 
 /* N2A_INT_MASK_SET -                   (COMMON_REG_BASE +
  * COMMON_REG_O_NW_INT_MASK_SET)  */
@@ -72,8 +126,16 @@
 #define SL_ALWAYS_ON_POLICY (3)
 #define SL_LONG_SLEEP_INTERVAL_POLICY (4)
 
-typedef void (*SimpleLinkEventHandler)(void);
 #define SimpleLinkEventHandler SimpleLinkEventHandler
+
+typedef void (*SimpleLinkEventHandler)(void);
+
+typedef struct {
+    uint32_t Long;
+    uint16_t Short;
+    uint8_t Byte1;
+    uint8_t Byte2;
+} cc3200_nwp_sync_pattern_t;
 
 typedef struct CC3200_RomInfo {
     uint16_t majorVer;
@@ -90,15 +152,23 @@ typedef enum wlan_security_t {
     SEC_TYPE_WPA_WPA2,
 } wlan_security_t;
 
-typedef struct WifiProfileConfig {
-    _WlanAddGetProfile_t common;
+typedef struct {
+    int8_t SecType;
+    uint8_t SsidLen;
+    uint8_t Priority;
+    uint8_t Bssid[6];
+    uint8_t PasswordLen;
+    uint8_t WepKeyId;
+} cc3200_nwp_80211_profile_t;
+
+typedef struct cc3200_nwp_80211_profile_config_t {
+    cc3200_nwp_80211_profile_t common;
     // base station name
     char *ssid;
     char *key;
     // enterprise config
     // char user[MAX_USER_LEN];
-
-} WifiProfileConfig;
+} cc3200_nwp_80211_profile_config_t;
 
 /* IpV4 socket address */
 typedef struct SlSockAddr_t {
@@ -107,17 +177,17 @@ typedef struct SlSockAddr_t {
 } SlSockAddr_t;
 
 typedef struct {
-    _SlGenericHeader_t GenHeader;
+    uint16_t opcode;
+    uint16_t len;
+} cc3200_nwp_header_t;
+
+typedef struct cc3200_nwp_resp_header_t {
+    cc3200_nwp_header_t GenHeader;
     uint8_t TxPoolCnt;
     uint8_t DevStatus;
     uint8_t SocketTXFailure;
     uint8_t SocketNonBlocking;
-} cc3200_SlResponseHeader;
-
-typedef union {
-    _DeviceSetGet_t Cmd;
-    _DeviceSetGet_t Rsp;
-} cc3200_DeviceMsgGet_u;
+} cc3200_nwp_resp_header_t;
 
 typedef struct {
     wifi_opcode Opcode;
@@ -151,26 +221,26 @@ typedef struct {
 } _SlCmdCtrl_t;
 
 typedef struct {
-    _u16 TxPayloadLen;
-    _u16 RxPayloadLen;
-    _u16 ActualRxPayloadLen;
-    _u8 *pTxPayload;
-    _u8 *pRxPayload;
+    uint16_t TxPayloadLen;
+    uint16_t RxPayloadLen;
+    uint16_t ActualRxPayloadLen;
+    uint8_t *pTxPayload;
+    uint8_t *pRxPayload;
 } _SlCmdExt_t;
 
 typedef struct _SlArgsData_t {
-    _u8 *pArgs;
-    _u8 *pData;
+    uint8_t *pArgs;
+    uint8_t *pData;
 } _SlArgsData_t;
 
 // typedef struct _SlPoolObj_t {
 //   _SlSyncObj_t SyncObj;
-//   _u8 *pRespArgs;
-//   _u8 ActionID;
-//   _u8 AdditionalData; /* use for socketID and one bit which indicate supprt
-//   IPV6
+//   uint8_t *pRespArgs;
+//   uint8_t ActionID;
+//   uint8_t AdditionalData; /* use for socketID and one bit which indicate
+//   supprt IPV6
 //                          or not (1=support, 0 otherwise) */
-//   _u8 NextIndex;
+//   uint8_t NextIndex;
 
 // } _SlPoolObj_t;
 
@@ -195,14 +265,14 @@ typedef enum {
 } _SlActionID_e;
 
 // typedef struct _SlActionLookup_t {
-//   _u8 ActionID;
-//   _u16 ActionAsyncOpcode;
+//   uint8_t ActionID;
+//   uint16_t ActionAsyncOpcode;
 //   _SlSpawnEntryFunc_t AsyncEventHandler;
 
 // } _SlActionLookup_t;
 
 // typedef struct {
-//   _u8 TxPoolCnt;
+//   uint8_t TxPoolCnt;
 //   _SlLockObj_t TxLockObj;
 //   _SlSyncObj_t TxSyncObj;
 // } _SlFlowContCB_t;
@@ -215,20 +285,21 @@ typedef enum {
 } _SlRxMsgClass_e;
 
 // typedef struct {
-//   _u8 *pAsyncBuf; /* place to write pointer to buffer with CmdResp's Header +
+//   uint8_t *pAsyncBuf; /* place to write pointer to buffer with CmdResp's
+//   Header +
 //                      Arguments */
-//   _u8 ActionIndex;
+//   uint8_t ActionIndex;
 //   _SlSpawnEntryFunc_t AsyncEvtHandler; /* place to write pointer to
 //   AsyncEvent
 //                                           handler (calc-ed by Opcode)   */
 //   _SlRxMsgClass_e RxMsgClass;          /* type of Rx message          */
 // } AsyncExt_t;
 
-typedef _u8 _SlSd_t;
+typedef uint8_t _SlSd_t;
 
 // typedef struct {
 //   _SlCmdCtrl_t *pCmdCtrl;
-//   _u8 *pTxRxDescBuff;
+//   uint8_t *pTxRxDescBuff;
 //   _SlCmdExt_t *pCmdExt;
 //   AsyncExt_t AsyncExt;
 // } _SlFunctionParams_t;

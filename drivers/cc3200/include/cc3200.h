@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+#include "cc3200_params.h"
+
 typedef struct {
     /* netdev fields */
     // netdev_ieee802154_t netdev; /**< netdev parent struct */
