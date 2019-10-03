@@ -1,5 +1,10 @@
 # additional modules dependencies
 
+ifneq (,$(filter cpp,$(FEATURES_USED)))
+    USEMODULE += pthread
+    BASELIBS += -lstdc++
+endif
+
 ifneq (,$(filter esp_eth,$(USEMODULE)))
     USEMODULE += esp_idf_eth
     USEMODULE += esp_idf_eth_phy
@@ -105,4 +110,11 @@ else
     ifeq ($(FLASH_MODE), dout)
         CFLAGS += -DFLASH_MODE_DOUT=1
     endif
+endif
+
+ifneq (,$(filter esp_idf_heap,$(USEMODULE)))
+    LINKFLAGS += -Wl,-wrap,_malloc_r
+    LINKFLAGS += -Wl,-wrap,_calloc_r
+    LINKFLAGS += -Wl,-wrap,_realloc_r
+    LINKFLAGS += -Wl,-wrap,_free_r
 endif

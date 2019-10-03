@@ -11,7 +11,7 @@ BOARD_INSUFFICIENT_MEMORY := airfy-beacon arduino-duemilanove arduino-leonardo \
                              arduino-mega2560 arduino-nano arduino-uno \
                              b-l072z-lrwan1 blackpill \
                              bluepill calliope-mini cc2650-launchpad cc2650stk \
-                             hifive1 i-nucleo-lrwan1 lsn50 maple-mini mega-xplained microbit msb-430 \
+                             hifive1 hifive1b i-nucleo-lrwan1 lsn50 maple-mini mega-xplained microbit msb-430 \
                              msb-430h nrf51dk nrf51dongle nrf6310 \
                              nucleo-f031k6 nucleo-f042k6 \
                              nucleo-f303k8 nucleo-l031k6 nucleo-f030r8 \
@@ -116,15 +116,4 @@ host-tools:
 	$(Q)env -u CC -u CFLAGS make -C $(RIOTTOOLS)
 
 # Set a custom channel if needed
-ifneq (,$(filter cc110x,$(USEMODULE)))          # radio is cc110x sub-GHz
-  DEFAULT_CHANNEL ?= 0
-  CFLAGS += -DCC110X_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
-else
-  ifneq (,$(filter at86rf212b,$(USEMODULE)))    # radio is IEEE 802.15.4 sub-GHz
-    DEFAULT_CHANNEL ?= 5
-    CFLAGS += -DIEEE802154_DEFAULT_SUBGHZ_CHANNEL=$(DEFAULT_CHANNEL)
-  else                                          # radio is IEEE 802.15.4 2.4 GHz
-    DEFAULT_CHANNEL ?= 26
-    CFLAGS += -DIEEE802154_DEFAULT_CHANNEL=$(DEFAULT_CHANNEL)
-  endif
-endif
+include $(RIOTMAKE)/default-channel.inc.mk

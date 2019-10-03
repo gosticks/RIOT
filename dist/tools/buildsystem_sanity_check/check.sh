@@ -78,6 +78,7 @@ UNEXPORTED_VARIABLES+=('DEBUG_ADAPTER' 'DEBUG_ADAPTER_ID')
 UNEXPORTED_VARIABLES+=('PROGRAMMER_SERIAL')
 UNEXPORTED_VARIABLES+=('STLINK_VERSION')
 UNEXPORTED_VARIABLES+=('PORT_LINUX' 'PORT_DARWIN')
+UNEXPORTED_VARIABLES+=('PORT[ ?=:]' 'PORT$')
 
 EXPORTED_VARIABLES_ONLY_IN_VARS=()
 check_not_exporting_variables() {
@@ -126,6 +127,19 @@ check_deprecated_vars_patterns() {
         | error_with_message 'Deprecated variables or patterns:'
 }
 
+# Applications Makefile must not set 'BOARD =' unconditionally
+check_not_setting_board_equal() {
+    local patterns=()
+    local pathspec=()
+
+    patterns+=(-e '^[[:space:]]*BOARD[[:space:]]*=')
+
+    pathspec+=('**/Makefile')
+
+    git -C "${RIOTBASE}" grep "${patterns[@]}" -- "${pathspec[@]}" \
+        | error_with_message 'Applications Makefile should use "BOARD ?="'
+}
+
 error_on_input() {
     ! grep ''
 }
@@ -134,6 +148,7 @@ all_checks() {
     check_not_parsing_features
     check_not_exporting_variables
     check_deprecated_vars_patterns
+    check_not_setting_board_equal
 }
 
 main() {

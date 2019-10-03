@@ -47,6 +47,7 @@ export CC                    # The C compiler to use.
 export CXX                   # The CXX compiler to use.
 export CCAS                  # The C compiler to use for assembler files, typically the same as CC.
 export CFLAGS                # The compiler flags. Must only ever be used with `+=`.
+export CFLAGS_CPU            # CPU architecture specific compiler flags
 export CXXUWFLAGS            # (Patterns of) flags in CFLAGS that should not be passed to CXX.
 export CXXEXFLAGS            # Additional flags that should be passed to CXX.
 export CCASUWFLAGS           # (Patterns of) flags in CFLAGS that should not be passed to CCAS.
@@ -74,11 +75,11 @@ export GIT_CACHE_DIR         # path to git-cache cache directory
 export FLASH_ADDR            # Define an offset to flash code into ROM memory.
 # TERMPROG                   # The command to call on "make term".
 # TERMFLAGS                  # Additional parameters to supply to TERMPROG.
-export PORT                  # The port to connect the TERMPROG to.
+# PORT                       # The port to connect the TERMPROG to.
 export ELFFILE               # The unstripped result of the compilation.
 export HEXFILE               # The 'intel hex' stripped result of the compilation.
 # BINFILE                    # The 'binary' stripped result of the compilation.
-# FLASHFILE                  # The output file used for flashing (transition phase: only if defined)
+# FLASHFILE                  # The output file used for flashing
 # DEBUGGER                   # The command to call on "make debug", usually a script starting the GDB front-end.
 # DEBUGGER_FLAGS             # The parameters to supply to DEBUGGER.
 # DEBUGSERVER                # The command to call on "make debug-server", usually a script starting the GDB server.

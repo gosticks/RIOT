@@ -1,7 +1,3 @@
-# define the cpu used by the RE-mote board
-export CPU       =  cc2538
-export CPU_MODEL =  cc2538sf53
-
 # define the default flash-tool
 export PROGRAMMER ?= cc2538-bsl
 
@@ -27,10 +23,10 @@ endif
 OFLAGS = --gap-fill 0xff
 FLASHFILE ?= $(BINFILE)
 DEBUGGER_FLAGS = $(BINDIR) $(ELFFILE)
-export OBJDUMPFLAGS += --disassemble --source --disassembler-options=force-thumb
+OBJDUMPFLAGS += --disassemble --source --disassembler-options=force-thumb
 
 # include common remote includes
-export INCLUDES += -I$(RIOTBOARD)/common/remote/include
+INCLUDES += -I$(RIOTBOARD)/common/remote/include
 
 # setup serial terminal
 include $(RIOTMAKE)/tools/serial.inc.mk

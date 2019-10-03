@@ -89,6 +89,7 @@ CLEAN = $(filter clean, $(MAKECMDGOALS))
 
 # include makefiles utils tools
 include $(RIOTMAKE)/utils/variables.mk
+include $(RIOTMAKE)/utils/strings.mk
 
 # get host operating system
 OS := $(shell uname)
@@ -110,7 +111,7 @@ include $(RIOTMAKE)/info-nproc.inc.mk
 # List of boards variables
 include $(RIOTMAKE)/boards.inc.mk
 
-GLOBAL_GOALS += buildtest info-boards-supported info-boards-features-missing info-buildsizes info-buildsizes-diff
+GLOBAL_GOALS += buildtest buildtest-indocker info-boards-supported info-boards-features-missing info-buildsizes info-buildsizes-diff
 ifneq (, $(filter $(GLOBAL_GOALS), $(MAKECMDGOALS)))
   BOARD=none
 endif
@@ -320,7 +321,7 @@ endif
 
 # set some settings useful for continuous integration builds
 ifeq ($(RIOT_CI_BUILD),1)
-    RIOT_VERSION_OVERRIDE:=buildtest
+    RIOT_VERSION ?= buildtest
     ifneq ($(filter $(BOARD_INSUFFICIENT_MEMORY), $(BOARD)),)
         $(info CI-build: skipping link step)
         RIOTNOLINK:=1
@@ -350,19 +351,13 @@ include $(RIOTMAKE)/cflags.inc.mk
 # Include VERSION for releases
 -include $(RIOTBASE)/VERSION
 
-# make the RIOT version available to the program
-ifeq ($(origin RIOT_VERSION), undefined)
-  GIT_STRING := $(shell git --git-dir="$(RIOTBASE)/.git" describe --always --abbrev=4 2> /dev/null)
-  ifneq (,$(GIT_STRING))
-    GIT_BRANCH := $(shell git --git-dir="$(RIOTBASE)/.git" rev-parse --abbrev-ref HEAD)
-    ifeq ($(strip $(GIT_BRANCH)),master)
-      RIOT_VERSION := $(GIT_STRING)
-    else
-      RIOT_VERSION := $(GIT_STRING)-$(GIT_BRANCH)
-    endif
-  else
-    RIOT_VERSION := 'UNKNOWN (builddir: $(RIOTBASE))'
-  endif
+include $(RIOTMAKE)/git_version.inc.mk
+RIOT_VERSION ?= $(or $(GIT_VERSION),'UNKNOWN (builddir: $(RIOTBASE))')
+
+# Deprecate using RIOT_VERSION_OVERRIDE but currently keep the behavior
+ifneq (,$(RIOT_VERSION_OVERRIDE))
+  $(warning 'RIOT_VERSION_OVERRIDE' is deprecated, it can now be set with 'RIOT_VERSION' directly.)
+  RIOT_VERSION = $(RIOT_VERSION_OVERRIDE)
 endif
 
 # Set module by prepending APPLICATION name with 'application_'.
@@ -438,12 +433,14 @@ include $(RIOTMAKE)/boot/riotboot.mk
 elffile: $(ELFFILE)
 hexfile: $(HEXFILE)
 binfile: $(BINFILE)
-# # # FLASHFILE Being introduced, only supported if bsp define FLASHFILE # # #
-# # # Not all boards use this file for the moment
-#
 # FLASHFILE is the file used by the flasher
-# (can be overwritten to $(HEXFILE), $(BINFILE))
+# Usually set to $(ELFFILE), $(HEXFILE) or $(BINFILE) in the board/flasher
+# or application specific files
 flashfile: $(FLASHFILE)
+
+ifeq (,$(FLASHFILE))
+  $(error FLASHFILE is not defined for this board: $(FLASHFILE))
+endif
 
 # variables used to compile and link c++
 CPPMIX ?= $(if $(wildcard *.cpp),1,)
@@ -499,6 +496,49 @@ print-size: $(ELFFILE)
 %.bin: %.elf
 	$(Q)$(OBJCOPY) $(OFLAGS) -Obinary $< $@
 
+endif # BUILD_IN_DOCKER
+
+# Rules to check the correctness of thin archives.
+
+relpath = $(shell realpath --relative-to=$(abspath .) $(1))
+
+# Each ARCHECK file contains all the absolute paths found inside the archive.
+BASELIB_ARCHECKS = $(patsubst %.a,%.a-check,$(filter %.a,$(BASELIBS)))
+
+# For each a file, print the absolute paths found inside it
+# If "ar t" is called with an absolute path it will print an abs path regardless
+# of how the archive is internally
+# In case of a malformed archive, ar prints to stderr (and sets an error code).
+# Doing `2>&1` is hacky, the correct thing would be to get the exit code.
+# The `| %.a` is necessary to be able to check file produced in docker.
+%.a-check: %.a
+	$(Q)$(AR) t $(call relpath,$<) 2>&1 | grep '^/' | '$(LAZYSPONGE)' $(LAZYSPONGE_FLAGS) '$@'
+
+# There's no point on keeping files whose content is later copied to another file
+.INTERMEDIATE: $(BASELIB_ARCHECKS)
+
+ARCHIVE_CHECK = $(BINDIR)/$(APPLICATION).archive-check
+
+$(ARCHIVE_CHECK): $(BASELIB_ARCHECKS)
+	$(Q)cat $^ | '$(LAZYSPONGE)' $(LAZYSPONGE_FLAGS) '$@'
+
+# Rule to check if thin archives are correctly produced, that is, with a correct
+# relative path.
+ifeq ($(BUILD_IN_DOCKER),1)
+archive-check: ..in-docker-container
+else
+archive-check: $(ARCHIVE_CHECK) FORCE
+	@if [ -s '$<' ] ; then \
+		$(COLOR_ECHO) '$(COLOR_RED)Found the following absolute paths in archives' ;\
+		cat '$<';\
+		$(COLOR_ECHO) '$(COLOR_RESET)' ;\
+		exit 1;\
+	elif [ -f '$<' ] ; then \
+		$(COLOR_ECHO) '$(COLOR_GREEN)Archives correctly formed$(COLOR_RESET)' ;\
+	else \
+		$(COLOR_ECHO) '$(COLOR_RED)Unexpected error (file not found)$(COLOR_RESET)' ;\
+		exit 1;\
+	fi
 endif # BUILD_IN_DOCKER
 
 # Check given command is available in the path
@@ -733,13 +773,10 @@ $(RIOTBUILD_CONFIG_HEADER_C): FORCE
 	$(Q)'$(RIOTTOOLS)/genconfigheader/genconfigheader.sh' $(CFLAGS_WITH_MACROS) \
 		| '$(LAZYSPONGE)' $(LAZYSPONGE_FLAGS) '$@'
 
-CFLAGS_WITH_MACROS := $(CFLAGS)
-
-ifneq (,$(RIOT_VERSION_OVERRIDE))
-export CFLAGS_WITH_MACROS += -DRIOT_VERSION=\"$(RIOT_VERSION_OVERRIDE)\"
-else
-export CFLAGS_WITH_MACROS += -DRIOT_VERSION=\"$(RIOT_VERSION)\"
-endif
+# Immediate evaluation but keep CLAGS_WITH_MACROS deferred
+_CFLAGS := $(CFLAGS)
+CFLAGS_WITH_MACROS = $(_CFLAGS)
+CFLAGS_WITH_MACROS += -DRIOT_VERSION=\"$(RIOT_VERSION)\"
 
 CFLAGS := $(patsubst -D%,,$(CFLAGS))
 CFLAGS := $(patsubst -U%,,$(CFLAGS))

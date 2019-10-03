@@ -27,6 +27,7 @@
 #include "board.h"
 #include "cpu.h"
 #include "periph/init.h"
+#include "stdio_base.h"
 
 void bl_init_ports(void)
 {
@@ -42,6 +43,11 @@ void bl_init_ports(void)
 
     LED0_OFF;
     LED0_OFF;
+
+    /* initialize stdio prior to periph_init() to allow use of DEBUG() there */
+    stdio_init();
+
+    /* trigger static peripheral initialization */
     periph_init();
 }
 
@@ -72,8 +78,4 @@ void init_clks1(void)
 
     /* Set clock divider to 4 (value+1) */
     CCLKCFG = CL_CPU_DIV - 1;           /* Fcpu = 72 MHz */
-
-#if USE_USB
-    USBCLKCFG = USBCLKDivValue;     /* usbclk = 288 MHz/6 = 48 MHz */
-#endif
 }

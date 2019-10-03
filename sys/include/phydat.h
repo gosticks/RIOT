@@ -36,6 +36,7 @@
 #define PHYDAT_H
 
 #include <stdint.h>
+#include "kernel_defines.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,6 +98,8 @@ enum {
     UNIT_DBM,       /**< decibel-milliwatts */
     UNIT_COULOMB,   /**< coulomb */
     UNIT_F,         /**< Farad */
+    /* electrochemical */
+    UNIT_PH,        /**< pH  */
     /* pressure */
     UNIT_BAR,       /**< Beer? */
     UNIT_PA,        /**< Pascal */

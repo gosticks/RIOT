@@ -164,7 +164,7 @@ ifneq (,$(filter gnrc_netif,$(USEMODULE)))
   endif
 endif
 
-ifneq (,$(filter ieee802154 nrfmin esp_now gnrc_sixloenc,$(USEMODULE)))
+ifneq (,$(filter ieee802154 nrfmin esp_now cc110x gnrc_sixloenc,$(USEMODULE)))
   ifneq (,$(filter gnrc_ipv6, $(USEMODULE)))
     USEMODULE += gnrc_sixlowpan
   endif
@@ -443,6 +443,10 @@ ifneq (,$(filter shell_commands,$(USEMODULE)))
   ifneq (,$(filter fib,$(USEMODULE)))
     USEMODULE += posix_inet
   endif
+  ifneq (,$(filter nimble_netif,$(USEMODULE)))
+    USEMODULE += nimble_scanner
+    USEMODULE += nimble_scanlist
+  endif
 endif
 
 ifneq (,$(filter posix_semaphore,$(USEMODULE)))
@@ -606,6 +610,7 @@ endif
 
 ifneq (,$(filter schedstatistics,$(USEMODULE)))
   USEMODULE += xtimer
+  USEMODULE += sched_cb
 endif
 
 ifneq (,$(filter arduino,$(USEMODULE)))
@@ -668,11 +673,12 @@ ifneq (,$(filter can,$(USEMODULE)))
   ifneq (,$(filter can_mbox,$(USEMODULE)))
     USEMODULE += core_mbox
   endif
-  USEMODULE += gnrc_pktbuf_static
+  USEMODULE += memarray
 endif
 
 ifneq (,$(filter can_isotp,$(USEMODULE)))
   USEMODULE += xtimer
+  USEMODULE += gnrc_pktbuf
 endif
 
 ifneq (,$(filter conn_can,$(USEMODULE)))
@@ -822,6 +828,10 @@ ifneq (,$(filter bluetil_addr,$(USEMODULE)))
   USEMODULE += fmt
 endif
 
+ifneq (,$(filter nimble_%,$(USEMODULE)))
+  USEPKG += nimble
+endif
+
 ifneq (,$(filter cord_epsim,$(USEMODULE)))
   USEMODULE += cord_common
   USEMODULE += gcoap
@@ -882,6 +892,20 @@ endif
 ifneq (,$(filter riotboot_hdr, $(USEMODULE)))
   USEMODULE += checksum
   USEMODULE += riotboot
+endif
+
+ifneq (,$(filter irq_handler,$(USEMODULE)))
+  USEMODULE += event
+endif
+
+ifneq (,$(filter tinydtls_sock_dtls, $(USEMODULE)))
+    USEPKG += tinydtls
+    USEMODULE += sock_dtls
+endif
+
+ifneq (,$(filter sock_dtls, $(USEMODULE)))
+    USEMODULE += credman
+    USEMODULE += sock_udp
 endif
 
 # Enable periph_gpio when periph_gpio_irq is enabled

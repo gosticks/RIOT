@@ -88,6 +88,14 @@
 #include "net/asymcute.h"
 #endif
 
+#ifdef MODULE_SOCK_DTLS
+#include "net/sock/dtls.h"
+#endif
+
+#ifdef MODULE_SCHEDSTATISTICS
+#include "schedstatistics.h"
+#endif
+
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
@@ -100,6 +108,9 @@ void auto_init(void)
 #ifdef MODULE_XTIMER
     DEBUG("Auto init xtimer module.\n");
     xtimer_init();
+#endif
+#ifdef MODULE_SCHEDSTATISTICS
+    init_schedstatistics();
 #endif
 #ifdef MODULE_MCI
     DEBUG("Auto init mci module.\n");
@@ -181,6 +192,10 @@ void auto_init(void)
     extern void auto_init_loramac(void);
     auto_init_loramac();
 #endif
+#ifdef MODULE_SOCK_DTLS
+    DEBUG("Auto init sock_dtls\n");
+    sock_dtls_init();
+#endif
 
 /* initialize USB devices */
 #ifdef MODULE_AUTO_INIT_USBUS
@@ -206,6 +221,11 @@ void auto_init(void)
     auto_init_mrf24j40();
 #endif
 
+#ifdef MODULE_CC110X
+    extern void auto_init_cc110x(void);
+    auto_init_cc110x();
+#endif
+
 #ifdef MODULE_CC2420
     extern void auto_init_cc2420(void);
     auto_init_cc2420();
@@ -226,11 +246,13 @@ void auto_init(void)
     auto_init_esp_eth();
 #endif
 
+/* don't change the order of auto_init_esp_now and auto_init_esp_wifi */
 #ifdef MODULE_ESP_NOW
     extern void auto_init_esp_now(void);
     auto_init_esp_now();
 #endif
 
+/* don't change the order of auto_init_esp_now and auto_init_esp_wifi */
 #ifdef MODULE_ESP_WIFI
     extern void auto_init_esp_wifi(void);
     auto_init_esp_wifi();
@@ -244,11 +266,6 @@ void auto_init(void)
 #ifdef MODULE_SLIPDEV
     extern void auto_init_slipdev(void);
     auto_init_slipdev();
-#endif
-
-#ifdef MODULE_CC110X
-    extern void auto_init_cc110x(void);
-    auto_init_cc110x();
 #endif
 
 #ifdef MODULE_CC2538_RF
@@ -469,6 +486,14 @@ void auto_init(void)
     extern void auto_init_mpu9150(void);
     auto_init_mpu9150();
 #endif
+#ifdef MODULE_PCA9685
+    extern void auto_init_pca9685(void);
+    auto_init_pca9685();
+#endif
+#ifdef MODULE_PH_OEM
+    extern void auto_init_ph_oem(void);
+    auto_init_ph_oem();
+#endif
 #ifdef MODULE_PIR
     extern void auto_init_pir(void);
     auto_init_pir();
@@ -502,8 +527,8 @@ void auto_init(void)
     auto_init_tcs37727();
 #endif
 #ifdef MODULE_TMP006
-    extern void auto_init_tmp006(void);
-    auto_init_tmp006();
+    extern void auto_init_tmp00x(void);
+    auto_init_tmp00x();
 #endif
 #ifdef MODULE_TSL2561
     extern void auto_init_tsl2561(void);

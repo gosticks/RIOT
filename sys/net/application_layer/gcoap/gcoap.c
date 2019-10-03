@@ -62,7 +62,8 @@ const coap_resource_t _default_resources[] = {
 
 static gcoap_listener_t _default_listener = {
     &_default_resources[0],
-    sizeof(_default_resources) / sizeof(_default_resources[0]),
+    ARRAY_SIZE(_default_resources),
+    NULL,
     NULL
 };
 
@@ -132,10 +133,16 @@ static void *_event_loop(void *arg)
                 /* reduce retries remaining, double timeout and resend */
                 else {
                     memo->send_limit--;
+#ifdef GCOAP_NO_RETRANS_BACKOFF
+                    unsigned i        = 0;
+#else
                     unsigned i        = COAP_MAX_RETRANSMIT - memo->send_limit;
+#endif
                     uint32_t timeout  = ((uint32_t)COAP_ACK_TIMEOUT << i) * US_PER_SEC;
+#if COAP_ACK_VARIANCE > 0
                     uint32_t variance = ((uint32_t)COAP_ACK_VARIANCE << i) * US_PER_SEC;
                     timeout = random_uint32_range(timeout, timeout + variance);
+#endif
 
                     ssize_t bytes = sock_udp_send(&_sock, memo->msg.data.pdu_buf,
                                                   memo->msg.data.pdu_len,
@@ -382,7 +389,7 @@ static int _find_resource(coap_pkt_t *pdu, const coap_resource_t **resource_ptr,
                                             gcoap_listener_t **listener_ptr)
 {
     int ret = GCOAP_RESOURCE_NO_PATH;
-    unsigned method_flag = coap_method2flag(coap_get_code_detail(pdu));
+    coap_method_flags_t method_flag = coap_method2flag(coap_get_code_detail(pdu));
 
     /* Find path for CoAP msg among listener resources and execute callback. */
     gcoap_listener_t *listener = _coap_state.listeners;
@@ -633,6 +640,9 @@ void gcoap_register_listener(gcoap_listener_t *listener)
     }
 
     listener->next = NULL;
+    if (!listener->link_encoder) {
+        listener->link_encoder = gcoap_encode_link;
+    }
     _last->next = listener;
 }
 
@@ -753,8 +763,10 @@ size_t gcoap_req_send(const uint8_t *buf, size_t len,
             if (memo->msg.data.pdu_buf) {
                 memo->send_limit  = COAP_MAX_RETRANSMIT;
                 timeout           = (uint32_t)COAP_ACK_TIMEOUT * US_PER_SEC;
+#if COAP_ACK_VARIANCE > 0
                 uint32_t variance = (uint32_t)COAP_ACK_VARIANCE * US_PER_SEC;
                 timeout = random_uint32_range(timeout, timeout + variance);
+#endif
             }
             else {
                 memo->state = GCOAP_MEMO_UNUSED;
@@ -900,7 +912,6 @@ uint8_t gcoap_op_state(void)
 
 int gcoap_get_resource_list(void *buf, size_t maxlen, uint8_t cf)
 {
-    (void)cf; /* only used in the assert below. */
     assert(cf == COAP_FORMAT_LINK);
 
     /* skip the first listener, gcoap itself (we skip /.well-known/core) */
@@ -909,36 +920,67 @@ int gcoap_get_resource_list(void *buf, size_t maxlen, uint8_t cf)
     char *out = (char *)buf;
     size_t pos = 0;
 
+    coap_link_encoder_ctx_t ctx;
+    ctx.content_format = cf;
+    /* indicate initial link for the list */
+    ctx.flags = COAP_LINK_FLAG_INIT_RESLIST;
+
     /* write payload */
     while (listener) {
-        const coap_resource_t *resource = listener->resources;
+        if (!listener->link_encoder) {
+            continue;
+        }
+        ctx.link_pos = 0;
 
-        for (unsigned i = 0; i < listener->resources_len; i++) {
-            size_t path_len = strlen(resource->path);
+        for (; ctx.link_pos < listener->resources_len; ctx.link_pos++) {
+            ssize_t res;
             if (out) {
-                /* only add new resources if there is space in the buffer */
-                if ((pos + path_len + 3) > maxlen) {
-                    break;
-                }
-                if (pos) {
-                    out[pos++] = ',';
-                }
-                out[pos++] = '<';
-                memcpy(&out[pos], resource->path, path_len);
-                pos += path_len;
-                out[pos++] = '>';
+                res = listener->link_encoder(&listener->resources[ctx.link_pos],
+                                             &out[pos], maxlen - pos, &ctx);
             }
             else {
-                pos += (pos) ? 3 : 2;
-                pos += path_len;
+                res = listener->link_encoder(&listener->resources[ctx.link_pos],
+                                             NULL, 0, &ctx);
             }
-            ++resource;
+
+            if (res > 0) {
+                pos += res;
+                ctx.flags &= ~COAP_LINK_FLAG_INIT_RESLIST;
+            }
+            else {
+                break;
+            }
         }
 
         listener = listener->next;
     }
 
     return (int)pos;
+}
+
+ssize_t gcoap_encode_link(const coap_resource_t *resource, char *buf,
+                          size_t maxlen, coap_link_encoder_ctx_t *context)
+{
+    size_t path_len = strlen(resource->path);
+     /* count target separators and any link separator */
+    size_t exp_size = path_len + 2
+                        + ((context->flags & COAP_LINK_FLAG_INIT_RESLIST) ? 0 : 1);
+
+    if (buf) {
+        unsigned pos = 0;
+        if (exp_size > maxlen) {
+            return -1;
+        }
+
+        if (!(context->flags & COAP_LINK_FLAG_INIT_RESLIST)) {
+            buf[pos++] = ',';
+        }
+        buf[pos++] = '<';
+        memcpy(&buf[pos], resource->path, path_len);
+        buf[pos+path_len] = '>';
+    }
+
+    return exp_size;
 }
 
 int gcoap_add_qstring(coap_pkt_t *pdu, const char *key, const char *val)

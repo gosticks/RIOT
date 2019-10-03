@@ -29,6 +29,8 @@
 #define ENABLE_DEBUG (0)
 #include "debug.h"
 
+static ssize_t _encode_link(const coap_resource_t *resource, char *buf,
+                            size_t maxlen, coap_link_encoder_ctx_t *context);
 static void _resp_handler(unsigned req_state, coap_pkt_t* pdu,
                           sock_udp_ep_t *remote);
 static ssize_t _stats_handler(coap_pkt_t* pdu, uint8_t *buf, size_t len, void *ctx);
@@ -40,14 +42,38 @@ static const coap_resource_t _resources[] = {
     { "/riot/board", COAP_GET, _riot_board_handler, NULL },
 };
 
+static const char *_link_params[] = {
+    ";ct=0;rt=\"count\"",
+    NULL
+};
+
 static gcoap_listener_t _listener = {
     &_resources[0],
-    sizeof(_resources) / sizeof(_resources[0]),
+    ARRAY_SIZE(_resources),
+    _encode_link,
     NULL
 };
 
 /* Counts requests sent by CLI. */
 static uint16_t req_count = 0;
+
+/* Adds link format params to resource list */
+static ssize_t _encode_link(const coap_resource_t *resource, char *buf,
+                            size_t maxlen, coap_link_encoder_ctx_t *context) {
+    ssize_t res = gcoap_encode_link(resource, buf, maxlen, context);
+    if (res > 0) {
+        if (_link_params[context->link_pos]
+                && (strlen(_link_params[context->link_pos]) < (maxlen - res))) {
+            if (buf) {
+                memcpy(buf+res, _link_params[context->link_pos],
+                       strlen(_link_params[context->link_pos]));
+            }
+            return res + strlen(_link_params[context->link_pos]);
+        }
+    }
+
+    return res;
+}
 
 /*
  * Response callback.
@@ -227,7 +253,7 @@ int gcoap_cli_cmd(int argc, char **argv)
 
     /* if not 'info', must be a method code */
     int code_pos = -1;
-    for (size_t i = 0; i < sizeof(method_codes) / sizeof(char*); i++) {
+    for (size_t i = 0; i < ARRAY_SIZE(method_codes); i++) {
         if (strcmp(argv[1], method_codes[i]) == 0) {
             code_pos = i;
         }

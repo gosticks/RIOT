@@ -274,6 +274,9 @@ gnrc_sixlowpan_msg_frag_t *gnrc_sixlowpan_msg_frag_get(void)
             return &_fragment_msg[i];
         }
     }
+#ifdef MODULE_GNRC_SIXLOWPAN_FRAG_STATS
+    gnrc_sixlowpan_frag_stats_get()->frag_full++;
+#endif
     return NULL;
 }
 
@@ -394,7 +397,7 @@ void gnrc_sixlowpan_frag_rbuf_dispatch_when_complete(gnrc_sixlowpan_rbuf_t *rbuf
 {
     assert(rbuf);
     assert(netif_hdr);
-    if (rbuf->super.current_size == rbuf->pkt->size) {
+    if (rbuf->super.current_size == rbuf->super.datagram_size) {
         gnrc_pktsnip_t *netif = gnrc_netif_hdr_build(rbuf->super.src,
                                                      rbuf->super.src_len,
                                                      rbuf->super.dst,

@@ -148,7 +148,9 @@ ssize_t _sha256_handler(coap_pkt_t* pkt, uint8_t *buf, size_t len, void *context
 
     ssize_t reply_len = coap_build_reply(pkt, result, buf, len, 0);
     uint8_t *pkt_pos = (uint8_t*)pkt->hdr + reply_len;
-    pkt_pos += coap_put_block1_ok(pkt_pos, &block1, 0);
+    if (blockwise) {
+        pkt_pos += coap_opt_put_block1_control(pkt_pos, 0, &block1);
+    }
     if (result_len) {
         *pkt_pos++ = 0xFF;
         pkt_pos += fmt_bytes_hex((char *)pkt_pos, digest, sizeof(digest));
@@ -167,4 +169,4 @@ const coap_resource_t coap_resources[] = {
     { "/sha256", COAP_POST, _sha256_handler, NULL },
 };
 
-const unsigned coap_resources_numof = sizeof(coap_resources) / sizeof(coap_resources[0]);
+const unsigned coap_resources_numof = ARRAY_SIZE(coap_resources);

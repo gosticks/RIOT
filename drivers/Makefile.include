@@ -210,8 +210,16 @@ ifneq (,$(filter nrf24l01p,$(USEMODULE)))
   USEMODULE_INCLUDES += $(RIOTBASE)/drivers/nrf24l01p/include
 endif
 
+ifneq (,$(filter pca9685,$(USEMODULE)))
+  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/pca9685/include
+endif
+
 ifneq (,$(filter pcd8544,$(USEMODULE)))
   USEMODULE_INCLUDES += $(RIOTBASE)/drivers/pcd8544/include
+endif
+
+ifneq (,$(filter ph_oem,$(USEMODULE)))
+  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/ph_oem/include
 endif
 
 ifneq (,$(filter pir,$(USEMODULE)))
@@ -266,8 +274,8 @@ ifneq (,$(filter tcs37727,$(USEMODULE)))
   USEMODULE_INCLUDES += $(RIOTBASE)/drivers/tcs37727/include
 endif
 
-ifneq (,$(filter tmp006,$(USEMODULE)))
-  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/tmp006/include
+ifneq (,$(filter tmp00x,$(USEMODULE)))
+  USEMODULE_INCLUDES += $(RIOTBASE)/drivers/tmp00x/include
 endif
 
 ifneq (,$(filter tps6274x,$(USEMODULE)))

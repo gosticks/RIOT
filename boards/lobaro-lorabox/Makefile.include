@@ -1,9 +1,5 @@
-## the cpu to build for
-export CPU = stm32l1
-export CPU_MODEL = stm32l151cb_a
-
 # add the common header files to the include path
-INCLUDES  += -I$(RIOTBOARD)/lobaro-lorabox/include
+INCLUDES += -I$(RIOTBOARD)/common/stm32/include
 
 # configure the serial terminal
 PORT_LINUX ?= /dev/ttyUSB0
@@ -21,4 +17,4 @@ FLASHFILE ?= $(BINFILE)
 # -l 0x1ff: amount of sectors to erase
 FFLAGS += -p $(PORT) -e -u -S -l 0x1ff -w $(FLASHFILE)
 
-TERMFLAGS +=  --set-rts 0
+PYTERMFLAGS +=  --set-rts 0

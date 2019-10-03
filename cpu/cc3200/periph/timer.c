@@ -7,7 +7,7 @@
  */
 
 /**
- * @defgroup        cpu_cc3200
+ * @ingroup        cpu_cc3200
  * @{
  *
  * @file
@@ -171,9 +171,7 @@ int timer_init(tim_t dev, unsigned long freq, timer_cb_t cb, void *arg)
     if (prescaler > 0) {
         prescaler--;
     }
-    if (prescaler > 255) {
-        prescaler = 255;
-    }
+    prescaler &= 0xFF;
 
     timer(dev)->prescale_a      = prescaler;
     timer(dev)->interval_load_a = LOAD_VALUE;

@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup     ble_nimble
+ * @ingroup     pkg_nimble
  * @{
  *
  * @file
@@ -36,7 +36,7 @@
 #endif
 
 #ifdef MODULE_NIMBLE_CONTROLLER
-#ifdef CPU_FAM_NRF52
+#if defined(CPU_FAM_NRF52) || defined(CPU_FAM_NRF51)
 #include "nrf_clock.h"
 #endif
 
@@ -56,9 +56,10 @@ static void *_host_thread(void *arg)
 
 #ifdef MODULE_NIMBLE_CONTROLLER
     /* XXX: NimBLE needs the nRF5x's LF clock to run */
-#ifdef CPU_FAM_NRF52
+#if defined(CPU_FAM_NRF52) || defined(CPU_FAM_NRF51)
     clock_start_lf();
 #endif
+
     /* Run the controller
      *
      * Create task where NimBLE LL will run. This one is required as LL has its
@@ -98,6 +99,15 @@ void nimble_riot_init(void)
     res = ble_hs_id_infer_auto(0, &nimble_riot_own_addr_type);
     assert(res == 0);
     (void)res;
+
+#ifdef MODULE_NIMBLE_NETIF
+    extern void nimble_netif_init(void);
+    nimble_netif_init();
+#ifdef MODULE_SHELL_COMMANDS
+    extern void sc_nimble_netif_init(void);
+    sc_nimble_netif_init();
+#endif
+#endif
 
     /* initialize the configured, build-in services */
 #ifdef MODULE_NIMBLE_SVC_GAP

@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup     ble_nimble_scanlist
+ * @ingroup     pkg_nimble_scanlist
  * @{
  *
  * @file
@@ -50,9 +50,18 @@ static nimble_scanlist_entry_t *_find(const ble_addr_t *addr)
 
 void nimble_scanlist_init(void)
 {
-    for (unsigned i = 0; i < (sizeof(_mem) / sizeof(_mem[0])); i++) {
+    for (unsigned i = 0; i < ARRAY_SIZE(_mem); i++) {
         clist_rpush(&_pool, &_mem[i].node);
     }
+}
+
+nimble_scanlist_entry_t *nimble_scanlist_get_by_pos(unsigned pos)
+{
+    nimble_scanlist_entry_t *e = nimble_scanlist_get_next(NULL);
+    for (unsigned i = 0; (i < pos) && e; i++) {
+        e = nimble_scanlist_get_next(e);
+    }
+    return e;
 }
 
 void nimble_scanlist_update(const ble_addr_t *addr, int8_t rssi,

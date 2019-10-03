@@ -232,7 +232,7 @@ static void _send_to_iface(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     const ipv6_hdr_t *hdr = pkt->next->data;
 
     assert(netif != NULL);
-    ((gnrc_netif_hdr_t *)pkt->data)->if_pid = netif->pid;
+    gnrc_netif_hdr_set_netif(pkt->data, netif);
     if (gnrc_pkt_len(pkt->next) > netif->ipv6.mtu) {
         DEBUG("ipv6: packet too big\n");
         gnrc_icmpv6_error_pkt_too_big_send(netif->ipv6.mtu, pkt);
@@ -349,6 +349,37 @@ static int _fill_ipv6_hdr(gnrc_netif_t *netif, gnrc_pktsnip_t *ipv6)
                 memcpy(&hdr->src, src, sizeof(ipv6_addr_t));
             }
             /* Otherwise leave unspecified */
+        }
+    }
+    else {
+        bool invalid_src;
+        int idx;
+
+        gnrc_netif_acquire(netif);
+        invalid_src = ((idx = gnrc_netif_ipv6_addr_idx(netif, &hdr->src)) == -1) ||
+            (gnrc_netif_ipv6_addr_get_state(netif, idx) != GNRC_NETIF_IPV6_ADDRS_FLAGS_STATE_VALID);
+        gnrc_netif_release(netif);
+        if (invalid_src) {
+#if GNRC_IPV6_NIB_CONF_6LN
+            gnrc_pktsnip_t *icmpv6 = gnrc_pktsnip_search_type(ipv6,
+                                                              GNRC_NETTYPE_ICMPV6);
+            icmpv6_hdr_t *icmpv6_hdr;
+
+            if (icmpv6 != NULL) {
+                icmpv6_hdr = icmpv6->data;
+            }
+            if ((icmpv6 == NULL) ||
+                ((icmpv6_hdr->type != ICMPV6_RTR_SOL) &&
+                 (icmpv6_hdr->type != ICMPV6_NBR_SOL))) {
+                DEBUG("ipv6: preset packet source address %s is invalid\n",
+                      ipv6_addr_to_str(addr_str, &hdr->src, sizeof(addr_str)));
+                return -EADDRNOTAVAIL;
+            }
+#else   /* GNRC_IPV6_NIB_CONF_6LN */
+            DEBUG("ipv6: preset packet source address %s is invalid\n",
+                  ipv6_addr_to_str(addr_str, &hdr->src, sizeof(addr_str)));
+            return -EADDRNOTAVAIL;
+#endif  /* GNRC_IPV6_NIB_CONF_6LN */
         }
     }
 
@@ -630,7 +661,7 @@ static void _receive(gnrc_pktsnip_t *pkt)
     netif_hdr = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
 
     if (netif_hdr != NULL) {
-        netif = gnrc_netif_get_by_pid(((gnrc_netif_hdr_t *)netif_hdr->data)->if_pid);
+        netif = gnrc_netif_hdr_get_netif(netif_hdr->data);
 #ifdef MODULE_NETSTATS_IPV6
         assert(netif != NULL);
         netstats_t *stats = &netif->ipv6.stats;

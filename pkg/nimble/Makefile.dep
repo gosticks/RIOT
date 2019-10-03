@@ -29,11 +29,12 @@ endif
 # nimble controller dependencies
 ifneq (,$(filter nimble_controller,$(USEMODULE)))
   USEMODULE += nimble_transport_ram
-  ifeq (nrf52,$(CPU_FAM))
-    USEMODULE += nimble_drivers_nrf52
+  ifneq (,$(filter nrf5%,$(CPU_FAM)))
+    USEMODULE += nimble_drivers_nrf5x
   endif
 endif
 
+# RIOT specific submodule dependencies
 ifneq (,$(filter nimble_addr,$(USEMODULE)))
   USEMODULE += bluetil_addr
 endif
@@ -41,4 +42,22 @@ endif
 ifneq (,$(filter nimble_scanlist,$(USEMODULE)))
   USEMODULE += nimble_addr
   USEMODULE += bluetil_ad
+endif
+
+ifneq (,$(filter nimble_netif,$(USEMODULE)))
+  USEMODULE += l2util
+  USEMODULE += bluetil_addr
+  ifneq (,$(filter gnrc_ipv6_%,$(USEMODULE)))
+    USEMODULE += nimble_svc_ipss
+  endif
+  ifneq (,$(filter gnrc_ipv6_router_default,$(USEMODULE)))
+    USEMODULE += gnrc_ipv6_nib_6lr
+    USEMODULE += gnrc_sixlowpan
+    USEMODULE += gnrc_sixlowpan_iphc
+  endif
+  ifneq (,$(filter gnrc_ipv6_default,$(USEMODULE)))
+    USEMODULE += gnrc_ipv6_nib_6ln
+    USEMODULE += gnrc_sixlowpan
+    USEMODULE += gnrc_sixlowpan_iphc
+  endif
 endif

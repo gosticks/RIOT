@@ -137,10 +137,10 @@ static void _i2c_clear (_i2c_bus_t* bus);
 /* implementation of i2c interface */
 void i2c_init(i2c_t dev)
 {
-    if (I2C_NUMOF != sizeof(_i2c_bus)/sizeof(_i2c_bus_t)) {
+    if (I2C_NUMOF != ARRAY_SIZE(_i2c_bus)) {
         LOG_INFO("I2C_NUMOF does not match number of I2C_SDA_x/I2C_SCL_x definitions\n");
         LOG_INFO("Please check your board configuration in 'board.h'\n");
-        assert(I2C_NUMOF < sizeof(_i2c_bus)/sizeof(_i2c_bus_t));
+        assert(I2C_NUMOF < ARRAY_SIZE(_i2c_bus));
 
         return;
     }
@@ -240,7 +240,7 @@ int /* IRAM */ i2c_read_bytes(i2c_t dev, uint16_t addr, void *data, size_t len, 
                 (res = _i2c_write_byte (bus, addr2)) != 0) {
                 /* abort transfer */
                 _i2c_abort (bus, __func__);
-                return res;
+                return -ENXIO;
             }
         }
         else {
@@ -248,7 +248,7 @@ int /* IRAM */ i2c_read_bytes(i2c_t dev, uint16_t addr, void *data, size_t len, 
             if ((res = _i2c_write_byte (bus, (addr << 1 | I2C_READ))) != 0) {
                 /* abort transfer */
                 _i2c_abort (bus, __func__);
-                return res;
+                return -ENXIO;
             }
         }
     }
@@ -301,7 +301,7 @@ int /* IRAM */ i2c_write_bytes(i2c_t dev, uint16_t addr, const void *data, size_
                 (res = _i2c_write_byte (bus, addr2)) != 0) {
                 /* abort transfer */
                 _i2c_abort (bus, __func__);
-                return res;
+                return -ENXIO;
             }
         }
         else {
@@ -309,7 +309,7 @@ int /* IRAM */ i2c_write_bytes(i2c_t dev, uint16_t addr, const void *data, size_
             if ((res = _i2c_write_byte (bus, addr << 1)) != 0) {
                 /* abort transfer */
                 _i2c_abort (bus, __func__);
-                return res;
+                return -ENXIO;
             }
         }
     }

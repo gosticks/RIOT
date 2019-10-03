@@ -13,6 +13,7 @@ PSEUDOMODULES += devfs_%
 PSEUDOMODULES += ecc_%
 PSEUDOMODULES += emb6_router
 PSEUDOMODULES += event_%
+PSEUDOMODULES += fmt_%
 PSEUDOMODULES += gnrc_ipv6_default
 PSEUDOMODULES += gnrc_ipv6_router
 PSEUDOMODULES += gnrc_ipv6_router_default
@@ -31,6 +32,7 @@ PSEUDOMODULES += gnrc_sixloenc
 PSEUDOMODULES += gnrc_sixlowpan_border_router_default
 PSEUDOMODULES += gnrc_sixlowpan_default
 PSEUDOMODULES += gnrc_sixlowpan_frag_hint
+PSEUDOMODULES += gnrc_sixlowpan_frag_stats
 PSEUDOMODULES += gnrc_sixlowpan_iphc_nhc
 PSEUDOMODULES += gnrc_sixlowpan_nd_border_router
 PSEUDOMODULES += gnrc_sixlowpan_router
@@ -43,6 +45,7 @@ PSEUDOMODULES += l2filter_whitelist
 PSEUDOMODULES += lis2dh12_spi
 PSEUDOMODULES += log
 PSEUDOMODULES += log_printfnoformat
+PSEUDOMODULES += log_color
 PSEUDOMODULES += lora
 PSEUDOMODULES += mpu_stack_guard
 PSEUDOMODULES += nanocoap_%
@@ -68,7 +71,7 @@ PSEUDOMODULES += saul_default
 PSEUDOMODULES += saul_gpio
 PSEUDOMODULES += saul_nrf_temperature
 PSEUDOMODULES += scanf_float
-PSEUDOMODULES += schedstatistics
+PSEUDOMODULES += sched_cb
 PSEUDOMODULES += semtech_loramac_rx
 PSEUDOMODULES += sock
 PSEUDOMODULES += sock_ip
@@ -77,6 +80,7 @@ PSEUDOMODULES += sock_udp
 PSEUDOMODULES += stdin
 PSEUDOMODULES += stdio_ethos
 PSEUDOMODULES += stdio_uart_rx
+PSEUDOMODULES += sock_dtls
 
 # print ascii representation in function od_hex_dump()
 PSEUDOMODULES += od_string
@@ -97,6 +101,11 @@ PSEUDOMODULES += adc121c
 # full featured version of CCS811 driver as pseudo module
 PSEUDOMODULES += ccs811_full
 
+# include variants of CC110X drivers as pseudo modules
+PSEUDOMODULES += cc1100
+PSEUDOMODULES += cc1100e
+PSEUDOMODULES += cc1101
+
 # include variants of SX127X drivers as pseudo modules
 PSEUDOMODULES += sx1272
 PSEUDOMODULES += sx1276
@@ -116,6 +125,10 @@ PSEUDOMODULES += si7006
 PSEUDOMODULES += si7013
 PSEUDOMODULES += si7020
 PSEUDOMODULES += si7021
+
+#include variants of tmp00x drivers as pseudo modules
+PSEUDOMODULES += tmp006
+PSEUDOMODULES += tmp007
 
 # include variants of RN2XX3 drivers as pseudo modules
 PSEUDOMODULES += rn2483

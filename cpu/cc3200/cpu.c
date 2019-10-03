@@ -7,7 +7,7 @@
  */
 
 /**
- * @defgroup        cpu_cc3200
+ * @ingroup        cpu_cc3200
  * @{
  *
  * @file
@@ -26,6 +26,7 @@
 #include "cpu.h"
 #include "periph/init.h"
 #include "periph_cpu.h"
+#include "stdio_uart.h"
 #include "vendor/hw_types.h"
 #include "vendor/rom.h"
 
@@ -49,6 +50,8 @@ void cpu_init(void)
 
     /* reset board */
     periph_reset();
+
+    stdio_init();
 
     /* trigger static peripheral initialization */
     periph_init();

@@ -9,7 +9,7 @@ RIOTBASE ?= $(CURDIR)/../..
 
 BOARD_INSUFFICIENT_MEMORY := arduino-duemilanove arduino-leonardo \
                              arduino-mega2560 arduino-nano arduino-uno chronos \
-                             hifive1 i-nucleo-lrwan1 msb-430 msb-430h \
+                             hifive1 hifive1b i-nucleo-lrwan1 msb-430 msb-430h \
                              nucleo-f031k6 nucleo-f042k6 nucleo-f303k8 \
                              nucleo-l031k6 nucleo-f030r8 nucleo-f070rb \
                              nucleo-f072rb nucleo-f302r8 nucleo-f334r8 \
@@ -32,6 +32,11 @@ USEMODULE += shell_commands
 USEMODULE += ps
 # For testing we also include the ping6 command and some stats
 USEMODULE += gnrc_icmpv6_echo
+
+# Allow for env-var-based override of the nodes name (EMCUTE_ID)
+ifneq (,$(EMCUTE_ID))
+  CFLAGS += -DEMCUTE_ID=\"$(EMCUTE_ID)\"
+endif
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the

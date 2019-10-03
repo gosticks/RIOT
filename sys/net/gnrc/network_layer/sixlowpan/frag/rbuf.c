@@ -21,6 +21,9 @@
 #include "net/gnrc.h"
 #include "net/gnrc/sixlowpan.h"
 #include "net/gnrc/sixlowpan/frag.h"
+#ifdef  MODULE_GNRC_SIXLOWPAN_FRAG_VRB
+#include "net/gnrc/sixlowpan/frag/vrb.h"
+#endif  /* MODULE_GNRC_SIXLOWPAN_FRAG_VRB */
 #include "net/sixlowpan.h"
 #include "thread.h"
 #include "xtimer.h"
@@ -78,6 +81,15 @@ enum {
     RBUF_ADD_REPEAT,
     RBUF_ADD_DUPLICATE,
 };
+
+#ifdef MODULE_GNRC_SIXLOWPAN_FRAG_STATS
+static gnrc_sixlowpan_frag_stats_t _stats;
+
+gnrc_sixlowpan_frag_stats_t *gnrc_sixlowpan_frag_stats_get(void)
+{
+    return &_stats;
+}
+#endif
 
 static int _check_fragments(gnrc_sixlowpan_rbuf_base_t *entry,
                             size_t frag_size, size_t offset)
@@ -264,7 +276,7 @@ void rbuf_gc(void)
 
     for (i = 0; i < RBUF_SIZE; i++) {
         /* since pkt occupies pktbuf, aggressivly collect garbage */
-        if ((rbuf[i].pkt != NULL) &&
+        if (!rbuf_entry_empty(&rbuf[i]) &&
               ((now_usec - rbuf[i].super.arrival) > RBUF_TIMEOUT)) {
             DEBUG("6lo rfrag: entry (%s, ",
                   gnrc_netif_addr_to_str(rbuf[i].super.src,
@@ -280,6 +292,9 @@ void rbuf_gc(void)
             rbuf_rm(&(rbuf[i]));
         }
     }
+#ifdef MODULE_GNRC_SIXLOWPAN_FRAG_VRB
+    gnrc_sixlowpan_frag_vrb_gc();
+#endif
 }
 
 static inline void _set_rbuf_timeout(void)
@@ -342,8 +357,15 @@ static gnrc_sixlowpan_rbuf_t *_rbuf_get(const void *src, size_t src_len,
             gnrc_pktbuf_release(oldest->pkt);
             rbuf_rm(oldest);
             res = oldest;
+#if GNRC_SIXLOWPAN_FRAG_RBUF_AGGRESSIVE_OVERRIDE && \
+    defined(MODULE_GNRC_SIXLOWPAN_FRAG_STATS)
+            _stats.rbuf_full++;
+#endif
         }
         else {
+#ifdef MODULE_GNRC_SIXLOWPAN_FRAG_STATS
+            _stats.rbuf_full++;
+#endif
             return NULL;
         }
     }
