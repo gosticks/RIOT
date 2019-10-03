@@ -1,5 +1,4 @@
-#define ENABLE_DEBUG (0)
-#include "debug.h"
+
 
 #include "periph/spi.h"
 
@@ -10,6 +9,9 @@
 #include "vendor/rom.h"
 
 #include "include/cc3200_internal.h"
+
+#define ENABLE_DEBUG (1)
+#include "debug.h"
 
 #define ADC_O_ADC_CH_ENABLE 0x000000B8
 #define COMMON_REG_BASE 0x400F7000
@@ -31,6 +33,8 @@ void cc3200_setup(cc3200_t *dev, const cc3200_params_t *params)
 {
     (void)dev;
     (void)params;
+
+    puts("HELLO THERE SETUP <3");
     /* shutdown nwp subsystem first */
     graceful_nwp_shutdown();
 
@@ -52,6 +56,7 @@ void cc3200_setup(cc3200_t *dev, const cc3200_params_t *params)
  */
 int cc3200_init(cc3200_t *dev)
 {
+    puts("HELLO THERE <3");
     (void)dev;
     return 0;
 }
