@@ -43,6 +43,13 @@ extern "C" {
 #define LED_GREEN GPIO_PIN(PORT_A1, 2)
 /** @} */
 
+#define cc3200_PARAMS_BOARD                                                \
+    {                                                                      \
+        .spi = SPI_1, .spi_speed = SPI_SPEED_5MHZ,                         \
+        .cs_pin = GPIO_PIN(PORT_B, 12), .int_pin = GPIO_PIN(PORT_A, 15),   \
+        .sleep_pin = GPIO_PIN(PORT_B, 9), .reset_pin = GPIO_PIN(PORT_B, 8) \
+    }
+
 /**
  * @brief   Initialize board specific hardware
  */
