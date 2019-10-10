@@ -1,6 +1,9 @@
+#ifndef CC3100_PROTOCOL_H
+#define CC3100_PROTOCOL_H
 
-#ifndef CC3200_WIFI_PROTO
-#define CC3200_WIFI_PROTO
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // #include "protocol.h"
 #include "vendor/hw_common_reg.h"
@@ -72,7 +75,7 @@
 
 // base address of the wifi spi peripherials
 #define WIFI_SPI_BASE 0x44022000
-#define WIFI_REG (cc3200_spi_t *)WIFI_SPI_BASE
+#define WIFI_REG (cc3100_spi_t *)WIFI_SPI_BASE
 
 #define SL_MAC_ADDRESS_GET 2
 
@@ -135,16 +138,16 @@ typedef struct {
     uint16_t Short;
     uint8_t Byte1;
     uint8_t Byte2;
-} cc3200_nwp_sync_pattern_t;
+} cc3100_nwp_sync_pattern_t;
 
-typedef struct CC3200_RomInfo {
+typedef struct CC3100_RomInfo {
     uint16_t majorVer;
     uint16_t minorVer;
     uint16_t ucSubMinorVerNum;
     uint16_t ucDay;
     uint16_t ucMonth;
     uint16_t ucYear;
-} CC3200_RomInfo;
+} CC3100_RomInfo;
 
 typedef enum wlan_security_t {
     SEC_TYPE_OPEN = 0,
@@ -159,16 +162,16 @@ typedef struct {
     uint8_t Bssid[6];
     uint8_t PasswordLen;
     uint8_t WepKeyId;
-} cc3200_nwp_80211_profile_t;
+} cc3100_nwp_80211_profile_t;
 
-typedef struct cc3200_nwp_80211_profile_config_t {
-    cc3200_nwp_80211_profile_t common;
+typedef struct cc3100_nwp_80211_profile_config_t {
+    cc3100_nwp_80211_profile_t common;
     // base station name
     char *ssid;
     char *key;
     // enterprise config
     // char user[MAX_USER_LEN];
-} cc3200_nwp_80211_profile_config_t;
+} cc3100_nwp_80211_profile_config_t;
 
 /* IpV4 socket address */
 typedef struct SlSockAddr_t {
@@ -179,15 +182,15 @@ typedef struct SlSockAddr_t {
 typedef struct {
     uint16_t opcode;
     uint16_t len;
-} cc3200_nwp_header_t;
+} cc3100_nwp_header_t;
 
-typedef struct cc3200_nwp_resp_header_t {
-    cc3200_nwp_header_t GenHeader;
+typedef struct cc3100_nwp_resp_header_t {
+    cc3100_nwp_header_t GenHeader;
     uint8_t TxPoolCnt;
     uint8_t DevStatus;
     uint8_t SocketTXFailure;
     uint8_t SocketNonBlocking;
-} cc3200_nwp_resp_header_t;
+} cc3100_nwp_resp_header_t;
 
 typedef struct {
     wifi_opcode Opcode;
@@ -199,11 +202,11 @@ typedef struct WifiModule {
     int fd;
 } WifiModule;
 
-typedef struct cc3200_SpiStatusReg {
+typedef struct cc3100_SpiStatusReg {
     uint8_t unknown;
     uint8_t rxs;
     uint8_t txs;
-} cc3200_SpiStatusReg;
+} cc3100_SpiStatusReg;
 
 typedef struct {
     uint32_t ChipId;
@@ -304,4 +307,9 @@ typedef uint8_t _SlSd_t;
 //   AsyncExt_t AsyncExt;
 // } _SlFunctionParams_t;
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* AD7746_INTERNAL_H */
+       /** @} */

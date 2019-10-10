@@ -1,7 +1,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "cc3200_protocol.h"
+#ifndef CC3100_INTERNAL_H
+#define CC3100_INTERNAL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "cc3100_protocol.h"
+
+#define cc3100_reg(addr) (*((volatile uint32_t *)(addr)))
 
 // SPI SPEEDS
 #define SPI_RATE_13M 13000000
@@ -54,34 +63,34 @@
 #define REQUEST_QUEUE_SIZE 1
 
 /* RX Irqn handler type */
-typedef void (*cc3200_rx_irqn_handler)(void);
-#define cc3200_rx_irqn_handler cc3200_rx_irqn_handler
+typedef void (*cc3100_rx_irqn_handler)(void);
+#define cc3100_rx_irqn_handler cc3100_rx_irqn_handler
 
-typedef struct cc3200_drv_con_info_t {
+typedef struct cc3100_drv_con_info_t {
     uint8_t type; // type of current connection
     uint8_t ssidLen;
     uint8_t ssid[32];
     uint8_t bssid[6];
     bool connected;
-} cc3200_drv_con_info_t;
+} cc3100_drv_con_info_t;
 
 /**
  * @brief current driver state object
  *
  */
-typedef struct cc3200_drv_state_t {
+typedef struct cc3100_drv_state_t {
     uint8_t curReqCount;
-    volatile struct cc3200_drv_req_t *requestQueue[REQUEST_QUEUE_SIZE];
+    volatile struct cc3100_drv_req_t *requestQueue[REQUEST_QUEUE_SIZE];
     // connection info
-    struct cc3200_drv_con_info_t con;
+    struct cc3100_drv_con_info_t con;
     unsigned char macAddr[8];
-} cc3200_drv_state_t;
+} cc3100_drv_state_t;
 
 /**
  * @brief driver request object
  *
  */
-typedef struct cc3200_drv_req_t {
+typedef struct cc3100_drv_req_t {
     uint8_t ID;
     uint16_t Opcode;
 
@@ -96,8 +105,19 @@ typedef struct cc3200_drv_req_t {
     // current request state
     bool Waiting;
 
-} cc3200_drv_req_t;
+} cc3100_drv_req_t;
 
-int cc3200_read_from_nwp(void *buf, int len);
-int cc3200_send_to_nwp(const void *buf, int len);
-int cc3200_read_cmd_header(cc3200_nwp_resp_header_t *buf);
+void cc3100_nwp_graceful_power_off(void);
+void cc3100_nwp_power_on(void);
+void cc3100_nwp_power_off(void);
+int cc3100_init_nwp(void);
+int cc3100_read_from_nwp(void *buf, int len);
+int cc3100_send_to_nwp(const void *buf, int len);
+int cc3100_read_cmd_header(cc3100_nwp_resp_header_t *buf);
+void cc3100_nwp_rx_handler(void *value);
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* CC3200_INTERNAL_H */
+       /** @} */
