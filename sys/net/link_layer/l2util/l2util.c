@@ -18,6 +18,7 @@
 #include "log.h"
 #include "net/eui48.h"
 #include "net/ieee802154.h"
+#include "net/ieee80211.h"
 #include "net/ipv6.h"
 #include "net/netdev.h"
 
@@ -54,6 +55,11 @@ int l2util_eui64_from_addr(int dev_type, const uint8_t *addr, size_t addr_len,
             }
 #endif  /* defined(MODULE_NETDEV_ETH) || defined(MODULE_ESP_NOW) \
            defined(MODULE_NORDIC_SOFTDEVICE_BLE) || defined(MODULE_NIMBLE_NETIF) */
+#if defined(MODULE_NETDEV_IEEE80211)
+        case NETDEV_TYPE_IEEE80211:
+            ieee80211_get_iid(eui64, addr, addr_len);
+            return sizeof(eui64_t);
+#endif  /* defined(MODULE_NETDEV_IEEE80211) */
 #if defined(MODULE_NETDEV_IEEE802154) || defined(MODULE_XBEE)
         case NETDEV_TYPE_IEEE802154:
             switch (addr_len) {
@@ -95,6 +101,16 @@ int l2util_ipv6_iid_from_addr(int dev_type,
                               eui64_t *iid)
 {
     switch (dev_type) {
+#if defined(MODULE_NETDEV_IEEE80211) 
+        case NETDEV_TYPE_IEEE80211:
+            if (ieee80211_get_iid(iid, addr, addr_len)!= NULL) {
+                return sizeof(eui64_t);
+            }
+            else {
+                return -EINVAL;
+            }
+
+#endif  /* defined(MODULE_NETDEV_IEEE80211) */
 #if defined(MODULE_NETDEV_IEEE802154) || defined(MODULE_XBEE)
         case NETDEV_TYPE_IEEE802154:
             if (ieee802154_get_iid(iid, addr, addr_len) != NULL) {
@@ -154,6 +170,18 @@ int l2util_ipv6_iid_to_addr(int dev_type, const eui64_t *iid, uint8_t *addr)
             addr[5] = iid->uint8[7];
             return sizeof(eui48_t);
 #endif  /* defined(MODULE_NORDIC_SOFTDEVICE_BLE) || defined(MODULE_NIMBLE_NETIF) */
+#if defined(MODULE_NETDEV_IEEE80211) 
+            /* same as l2util_eui64_from_addr so reuse it */
+        case NETDEV_TYPE_IEEE80211:
+            /* assume address was based on EUI-64 */
+            addr[0] = iid->uint8[0] ^ 0x02;
+            addr[1] = iid->uint8[1];
+            addr[2] = iid->uint8[2];
+            addr[3] = iid->uint8[5];
+            addr[4] = iid->uint8[6];
+            addr[5] = iid->uint8[7];
+            return sizeof(eui48_t);
+#endif  /* defined(MODULE_NETDEV_IEEE80211) */
 #if defined(MODULE_NETDEV_IEEE802154) || defined(MODULE_XBEE)
         case NETDEV_TYPE_IEEE802154:
             /* assume address was based on EUI-64
@@ -214,6 +242,11 @@ int l2util_ndp_addr_len_from_l2ao(int dev_type,
             (void)opt;
             return sizeof(uint16_t);
 #endif  /* MODULE_NRFMIN */
+#if defined(MODULE_NETDEV_IEEE80211) 
+            /* same as l2util_eui64_from_addr so reuse it */
+        case NETDEV_TYPE_IEEE80211:
+            return IEEE80211_ADDRESS_LEN;
+#endif  /* defined(MODULE_NETDEV_IEEE80211) */
 #if defined(MODULE_NETDEV_IEEE802154) || defined(MODULE_XBEE)
         case NETDEV_TYPE_IEEE802154:
             /* see https://tools.ietf.org/html/rfc4944#section-8 */
