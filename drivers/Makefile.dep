@@ -106,6 +106,15 @@ ifneq (,$(filter cc2420,$(USEMODULE)))
   FEATURES_REQUIRED += periph_spi
 endif
 
+ifneq (,$(filter cc3100,$(USEMODULE)))
+  USEMODULE += xtimer
+  USEMODULE += netif
+  USEMODULE += ieee80211
+  USEMODULE += netdev_ieee80211
+  FEATURES_REQUIRED += periph_gpio
+  FEATURES_REQUIRED += periph_spi
+endif
+
 ifneq (,$(filter ccs811_full,$(USEMODULE)))
   FEATURES_REQUIRED += periph_gpio_irq
   USEMODULE += ccs811
