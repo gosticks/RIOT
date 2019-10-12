@@ -231,6 +231,11 @@ void auto_init(void)
     auto_init_cc2420();
 #endif
 
+#ifdef MODULE_CC3100
+    extern void auto_init_cc3100(void);
+    auto_init_cc3100();
+#endif
+
 #ifdef MODULE_ENCX24J600
     extern void auto_init_encx24j600(void);
     auto_init_encx24j600();
@@ -465,7 +470,7 @@ void auto_init(void)
 #ifdef MODULE_LTC4150
     extern void auto_init_ltc4150(void);
     auto_init_ltc4150();
- #endif
+#endif
 #ifdef MODULE_MAG3110
     extern void auto_init_mag3110(void);
     auto_init_mag3110();

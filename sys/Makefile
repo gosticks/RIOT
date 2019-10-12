@@ -40,6 +40,9 @@ endif
 ifneq (,$(filter ieee802154,$(USEMODULE)))
   DIRS += net/link_layer/ieee802154
 endif
+ifneq (,$(filter ieee80211,$(USEMODULE)))
+  DIRS += net/link_layer/ieee80211
+endif
 ifneq (,$(filter netdev_test,$(USEMODULE)))
   DIRS += net/netdev_test
 endif

@@ -6,6 +6,9 @@ endif
 ifneq (,$(filter gnrc_netif_ieee802154,$(USEMODULE)))
   DIRS += ieee802154
 endif
+ifneq (,$(filter gnrc_netif_ieee80211,$(USEMODULE)))
+  DIRS += ieee80211
+endif
 ifneq (,$(filter gnrc_netif_hdr,$(USEMODULE)))
   DIRS += hdr
 endif
