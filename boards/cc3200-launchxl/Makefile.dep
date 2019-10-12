@@ -1,3 +1,4 @@
 ifneq (,$(filter netdev_default gnrc_netdev_default,$(USEMODULE)))
+  USEMODULE += xtimer
   USEMODULE += cc3100
 endif

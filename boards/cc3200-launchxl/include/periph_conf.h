@@ -39,11 +39,37 @@ extern "C" {
 #define TIMER_3_EN 1
 
 /**
- * @brief number of timer blocks
+ * @name    Timer configuration
  *
+ * General purpose timers (GPT[0-3]) are configured consecutively and in order
+ * (without gaps) starting from GPT0, i.e. if multiple timers are enabled.
+ *
+ * @{
  */
-#define TIMER_NUMOF 4U
+static const timer_conf_t timer_config[] = {
+    {
+        .chn = 2,
+        .cfg = GPTMCFG_16_BIT_TIMER, /* required for XTIMER */
+    },
+    {
+        .chn = 1,
+        .cfg = GPTMCFG_32_BIT_TIMER,
+    },
+    {
+        .chn = 2,
+        .cfg = GPTMCFG_16_BIT_TIMER,
+    },
+    {
+        .chn = 1,
+        .cfg = GPTMCFG_32_BIT_TIMER,
+    },
+};
+
+#define TIMER_NUMOF ARRAY_SIZE(timer_config)
+
+#define TIMER_IRQ_PRIO      1
 /** @} */
+
 
 /**
  * @name SPI configuration
@@ -83,7 +109,8 @@ static const spi_conf_t spi_config[] = {
 
 #define UART_0_EN 1
 #define UART_1_EN 1
-
+#define UART_0_ISR 1
+#define UART_1_ISR 1
 /**
  * @brief UART device configuration
  *
@@ -91,15 +118,15 @@ static const spi_conf_t spi_config[] = {
 static const uart_conf_t uart_config[] = {
     {
             .dev    = UART0,
-            .pin_tx = 54,
-            .pin_rx = 56,
-            .irqn   = INT_UARTA0,
+            .pin_tx = 0x00000036, //54,
+            .pin_rx = 0x00000038, //56,
+            .irqn   = UART0_IRQn,
     },
     {
             .dev    = UART1,
             .pin_rx = 6,
             .pin_tx = 8,
-            .irqn   = INT_UARTA1,
+            .irqn   = UART1_IRQn,
     },
 };
 /** @} */

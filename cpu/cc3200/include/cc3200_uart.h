@@ -64,6 +64,13 @@ extern "C" {
 #define UART_CONFIG_PAR_ZERO 0x00000086  /**< Parity bit is zero */
 /** @} */
 
+#if UART_0_EN
+void isr_uart0(void);
+#endif
+#if UART_1_EN
+void isr_uart1(void);
+#endif
+
 /**
  * @brief UART control register
  * based on the cc2538_uart_t definitions (UART reg memory layout is shared

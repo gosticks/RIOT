@@ -29,12 +29,41 @@
 #include "vendor/hw_uart.h"
 #include "vendor/rom.h"
 
+
+#define ENABLE_DEBUG (0)
+#include "debug.h"
+
+
+#define UART_CTL_HSE_VALUE  (0)
+#define DIVFRAC_NUM_BITS    (6)
+#define DIVFRAC_MASK        ((1 << DIVFRAC_NUM_BITS) - 1)
+
 /* Bit masks for the UART Masked Interrupt Status (MIS) Register: */
 #define OEMIS (1 << 10) /**< UART overrun errors */
 #define BEMIS (1 << 9)  /**< UART break error */
 #define FEMIS (1 << 7)  /**< UART framing error */
 #define RTMIS (1 << 6)  /**< UART RX time-out */
 #define RXMIS (1 << 4)  /**< UART RX masked interrupt */
+
+/* Bit field definitions for the UART Line Control Register: */
+#define FENFD (1 << 4)    /**< Enable FIFOs */
+
+/* Valid word lengths for the LCRHbits.WLEN bit field: */
+enum {
+    WLEN_5_BITS = 0,
+    WLEN_6_BITS = 1,
+    WLEN_7_BITS = 2,
+    WLEN_8_BITS = 3,
+};
+
+
+enum {
+    FIFO_LEVEL_1_8TH = 0,
+    FIFO_LEVEL_2_8TH = 1,
+    FIFO_LEVEL_4_8TH = 2,
+    FIFO_LEVEL_6_8TH = 3,
+    FIFO_LEVEL_7_8TH = 4,
+};
 
 /* PIN_MODE value for using a PIN for UART */
 #define PIN_MODE_UART 0x00000003
@@ -63,7 +92,7 @@ void irq_handler(uart_t uart)
         uart_ctx[uart].rx_cb(uart_ctx[uart].arg, uart_config[uart].dev->dr);
     }
 
-    if (mis & (OEMIS | BEMIS | FEMIS)) {
+    if (mis & (OEMIS | BEMIS | FEMIS )) {
         /* clear error status */
         reg->cc3200_uart_dr.ecr = 0xFF;
     }
@@ -71,13 +100,13 @@ void irq_handler(uart_t uart)
     cortexm_isr_end();
 }
 
-#if UART_0_ISR
+#if UART_0_EN
 void isr_uart0(void)
 {
     irq_handler((uart_t)0);
 }
 #endif
-#if UART_1_ISR
+#if UART_1_EN
 void isr_uart1(void)
 {
     irq_handler((uart_t)1);
@@ -107,7 +136,7 @@ void uart_disable(uart_t uart)
 /**
  * @brief enable uart device
  *
- * @param uart interface number
+ * @param uart interface number∑
  */
 void uart_enable(uart_t uart)
 {
@@ -120,46 +149,8 @@ void uart_enable(uart_t uart)
     reg->CTL.raw |= (UART_CTL_UARTEN | UART_CTL_TXE | UART_CTL_RXE);
 }
 
-/**
- * @brief configure uart device
- *
- * @param uart interface number
- * @param baudrate
- * @param config
- */
-void uart_set_config(uart_t uart, uint32_t baudrate, uint32_t config)
-{
-    /* stop uart */
-    uart_disable(uart);
 
-    volatile cc3200_uart_t *reg = uart_config[uart].dev;
-    uint32_t div;
-    /* check if baudrate is too high and needs high speed mode */
-    if ((baudrate * 16) > CLOCK_CORECLOCK) {
-        reg->CTL.bits.HSE = 1;
-
-        /* half the baudrate to compensate for high speed mode */
-        baudrate /= 2;
-    } else {
-        /* disable high speed mode */
-        reg->CTL.bits.HSE = 0;
-    }
-
-    /* compute & set fractional baud rate divider */
-    div       = (((CLOCK_CORECLOCK * 8) / baudrate) + 1) / 2;
-    reg->IBRD = div / 64;
-    reg->FBRD = div % 64;
-
-    /* set config */
-    reg->LCRH.raw = config;
-
-    /* clear flags */
-    reg->flags.raw = 0;
-
-    uart_enable(uart);
-}
-
-int uart_init_blocking(uart_t uart, uint32_t baudrate)
+int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
 {
     uart_poweron(uart);
 
@@ -169,40 +160,58 @@ int uart_init_blocking(uart_t uart, uint32_t baudrate)
     /* Configure PIN_57 for UART0 UART0_RX */
     ROM_PinTypeUART(uart_config[uart].pin_rx, PIN_MODE_UART);
 
-    uart_set_config(uart, baudrate,
-                    (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
-                     UART_CONFIG_PAR_NONE));
+   cc3200_uart_t *u = uart_config[uart].dev;
 
-    return 0;
-}
+   /* Make sure the UART is disabled before trying to configure it */
+    u->CTL.raw = 0;
 
-int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
-{
-    /* initialize basic functionality */
-    int res = uart_init_blocking(uart, baudrate);
+   /* enable UART interrupts */
+    u->IM.raw = (OEMIS | BEMIS | FEMIS | RTMIS | RXMIS);
 
-    if (res != 0) {
-        return res;
+    /* Set FIFO interrupt levels and enable Rx and/or Tx: */
+    if (rx_cb) {
+        u->IFLS.bits.RXIFLSEL = FIFO_LEVEL_4_8TH; /**< MCU default */
+        u->CTL.bits.RXE = 1;
+    }
+    u->IFLS.bits.TXIFLSEL = FIFO_LEVEL_4_8TH;     /**< MCU default */
+    u->CTL.bits.TXE = 1;
+
+    /* disable high speed mode */
+    u->CTL.bits.HSE = 0;
+    
+    uint32_t div = CLOCK_CORECLOCK;
+    div <<= UART_CTL_HSE_VALUE + 2;
+    div += baudrate / 2; /**< Avoid a rounding error */
+    div /= baudrate;
+    u->IBRD = div >> DIVFRAC_NUM_BITS;
+    u->FBRD = div & DIVFRAC_MASK;
+
+    /* set config */
+    u->LCRH.raw = (WLEN_8_BITS << 5) | (1 << 4);
+
+    /* clear flags */
+    u->flags.raw = 0;
+
+    if (rx_cb) {
+        uart_ctx[uart].rx_cb = rx_cb;
+        uart_ctx[uart].arg   = arg;
     }
 
-    /* register callbacks */
-    uart_ctx[uart].rx_cb = rx_cb;
-    uart_ctx[uart].arg   = arg;
-    uint32_t uart_base   = (uint32_t)uart_config[uart].dev;
+    NVIC_EnableIRQ(uart_config[uart].irqn);
 
-    ROM_UARTIntEnable(uart_base, UART_INT_RX | UART_INT_OE | UART_INT_BE |
-                                         UART_INT_PE | UART_INT_FE);
+    u->CTL.bits.UARTEN = 1;
 
-    ROM_IntPrioritySet(uart_config[uart].irqn, INT_PRIORITY_LVL_3);
-    ROM_IntEnable(uart_config[uart].irqn);
-    return 0;
+    return UART_OK;
 }
 
 void uart_write(uart_t uart, const uint8_t *data, size_t len)
 {
-    uint32_t u = (uint32_t)uart_config[uart].dev;
+    
+    cc3200_uart_t *u = uart_config[uart].dev;
+
     for (size_t i = 0; i < len; i++) {
-        ROM_UARTCharPut(u, data[i]);
+        while (u->flags.bits.TXFF){}
+        u->dr = data[i];
     }
 }
 

@@ -30,6 +30,7 @@ extern "C" {
  * @name Timer configuration
  * @{
  */
+#define XTIMER_WIDTH 16
 #define XTIMER_BACKOFF 9
 #define XTIMER_OVERHEAD 5
 /** @} */

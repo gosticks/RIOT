@@ -1,24 +1,15 @@
-#ifndef CC3100_PROTOCOL_H
-#define CC3100_PROTOCOL_H
+#ifndef CC31XX_PROTOCOL_INTERNAL_H
+#define CC31XX_PROTOCOL_INTERNAL_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// #include "protocol.h"
 #include "vendor/hw_common_reg.h"
 #include "vendor/hw_memmap.h"
+#include "vendor/sl_nwp.h"
 
 #include <stdint.h>
-
-#define H2N_DUMMY_PATTERN (uint32_t)0xFFFFFFFF
-#define N2H_SYNC_PATTERN (uint32_t)0xABCDDCBA
-#define SYNC_PATTERN_LEN (uint32_t)sizeof(uint32_t)
-#define UART_SET_MODE_MAGIC_CODE (uint32_t)0xAA55AA55
-#define SPI_16BITS_BUG(pattern) \
-    (uint32_t)((uint32_t)pattern & (uint32_t)0xFFFF7FFF)
-#define SPI_8BITS_BUG(pattern) \
-    (uint32_t)((uint32_t)pattern & (uint32_t)0xFFFFFF7F)
 
 /**
  * @brief SYNC and CNYS patterns used to establish communication with NWP
@@ -47,6 +38,7 @@ extern "C" {
  */
 #define MATCH_WITH_SEQ_NUM(pBuf, TxSeqNum) \
     (BUF_SYNC_SPIM(pBuf) == (N2H_SYNC_SPIM_WITH_SEQ(TxSeqNum)))
+
 /**
  * @brief Match sync frame without sequence number
  *
@@ -90,11 +82,6 @@ extern "C" {
 #define OCP_SHARED_MAC_RESET_REG 0x4402E168
 #define ROM_VERSION_ADDR 0x00000400
 
-// SPI SPEEDS
-#define SPI_RATE_13M 13000000
-#define SPI_RATE_20M 20000000
-#define SPI_RATE_30M 30000000
-
 #define mscpi_reg uint32_t
 #define wifi_opcode uint16_t
 
@@ -129,123 +116,33 @@ extern "C" {
 #define SL_ALWAYS_ON_POLICY (3)
 #define SL_LONG_SLEEP_INTERVAL_POLICY (4)
 
-#define SimpleLinkEventHandler SimpleLinkEventHandler
+/**
+ * @brief CC32xx Network Config type
+ *
+ */
+typedef enum {
+    NWP_MAC_ADDRESS_SET               = 1, /**< get device IP addr */
+    NWP_MAC_ADDRESS_GET               = 2, /**< set device IP addr */
+    NWP_IPV4_STA_P2P_CL_GET_INFO      = 3,
+    NWP_IPV4_STA_P2P_CL_DHCP_ENABLE   = 4, /**< set IP using DHCD (default) */
+    NWP_IPV4_STA_P2P_CL_STATIC_ENABLE = 5, /**< set static IP persist in File
+                                              System */
+    NWP_IPV4_AP_P2P_GO_GET_INFO      = 6,
+    NWP_IPV4_AP_P2P_GO_STATIC_ENABLE = 7,
+    NWP_SET_HOST_RX_AGGR             = 8,
+    NWP_MAX_SETTINGS                 = 0xFF /**<  */
+} cc31xx_net_cfg_t;
 
-typedef void (*SimpleLinkEventHandler)(void);
-
-typedef struct {
-    uint32_t Long;
-    uint16_t Short;
-    uint8_t Byte1;
-    uint8_t Byte2;
-} cc3100_nwp_sync_pattern_t;
-
-typedef struct CC3100_RomInfo {
-    uint16_t majorVer;
-    uint16_t minorVer;
-    uint16_t ucSubMinorVerNum;
-    uint16_t ucDay;
-    uint16_t ucMonth;
-    uint16_t ucYear;
-} CC3100_RomInfo;
-
-typedef enum wlan_security_t {
-    SEC_TYPE_OPEN = 0,
-    SEC_TYPE_WEP,
-    SEC_TYPE_WPA_WPA2,
-} wlan_security_t;
-
-typedef struct {
-    int8_t SecType;
-    uint8_t SsidLen;
-    uint8_t Priority;
-    uint8_t Bssid[6];
-    uint8_t PasswordLen;
-    uint8_t WepKeyId;
-} cc3100_nwp_80211_profile_t;
-
-typedef struct cc3100_nwp_80211_profile_config_t {
-    cc3100_nwp_80211_profile_t common;
-    // base station name
-    char *ssid;
-    char *key;
-    // enterprise config
-    // char user[MAX_USER_LEN];
-} cc3100_nwp_80211_profile_config_t;
-
-/* IpV4 socket address */
-typedef struct SlSockAddr_t {
-    uint16_t sa_family;  /* Address family (e.g. , AF_INET)     */
-    uint8_t sa_data[14]; /* Protocol- specific address information*/
-} SlSockAddr_t;
-
-typedef struct {
-    uint16_t opcode;
-    uint16_t len;
-} cc3100_nwp_header_t;
-
-typedef struct cc3100_nwp_resp_header_t {
-    cc3100_nwp_header_t GenHeader;
-    uint8_t TxPoolCnt;
-    uint8_t DevStatus;
-    uint8_t SocketTXFailure;
-    uint8_t SocketNonBlocking;
-} cc3100_nwp_resp_header_t;
-
-typedef struct {
-    wifi_opcode Opcode;
-    uint8_t TxDescLen;
-    uint8_t RxDescLen;
-} WifiCtrlCmd;
-
-typedef struct WifiModule {
-    int fd;
-} WifiModule;
-
-typedef struct cc3100_SpiStatusReg {
-    uint8_t unknown;
-    uint8_t rxs;
-    uint8_t txs;
-} cc3100_SpiStatusReg;
-
-typedef struct {
-    uint32_t ChipId;
-    uint8_t FwVersion[4];
-    uint8_t PhyVersion[4];
-    uint8_t NwpVersion[4];
-    uint16_t RomVersion;
-    uint16_t Padding;
-} SlVersionFull;
-
-typedef struct {
-    wifi_opcode Opcode;
-    uint8_t TxDescLen;
-    uint8_t RxDescLen;
-} _SlCmdCtrl_t;
-
-typedef struct {
-    uint16_t TxPayloadLen;
-    uint16_t RxPayloadLen;
-    uint16_t ActualRxPayloadLen;
-    uint8_t *pTxPayload;
-    uint8_t *pRxPayload;
-} _SlCmdExt_t;
-
-typedef struct _SlArgsData_t {
-    uint8_t *pArgs;
-    uint8_t *pData;
-} _SlArgsData_t;
-
-// typedef struct _SlPoolObj_t {
-//   _SlSyncObj_t SyncObj;
-//   uint8_t *pRespArgs;
-//   uint8_t ActionID;
-//   uint8_t AdditionalData; /* use for socketID and one bit which indicate
-//   supprt IPV6
-//                          or not (1=support, 0 otherwise) */
-//   uint8_t NextIndex;
-
-// } _SlPoolObj_t;
+/**
+ * @brief 802.11 connection profile limits
+ * @{
+ */
+#define MAX_SSID_LEN (32) /**< Max SSID length */
+#define MAX_KEY_LEN (63)  /**< Max security key length */
+#define MAX_USER_LEN (32) /**< Max username length for Enterprice networks */
+#define MAX_ANON_USER_LEN (32)    /**< No idea */
+#define MAX_SMART_CONFIG_KEY (16) /**< No idea */
+/**}@ */
 
 typedef enum {
     SOCKET_0,
@@ -267,19 +164,6 @@ typedef enum {
     RECV_ID
 } _SlActionID_e;
 
-// typedef struct _SlActionLookup_t {
-//   uint8_t ActionID;
-//   uint16_t ActionAsyncOpcode;
-//   _SlSpawnEntryFunc_t AsyncEventHandler;
-
-// } _SlActionLookup_t;
-
-// typedef struct {
-//   uint8_t TxPoolCnt;
-//   _SlLockObj_t TxLockObj;
-//   _SlSyncObj_t TxSyncObj;
-// } _SlFlowContCB_t;
-
 typedef enum {
     RECV_RESP_CLASS,
     CMD_RESP_CLASS,
@@ -287,29 +171,214 @@ typedef enum {
     DUMMY_MSG_CLASS
 } _SlRxMsgClass_e;
 
-// typedef struct {
-//   uint8_t *pAsyncBuf; /* place to write pointer to buffer with CmdResp's
-//   Header +
-//                      Arguments */
-//   uint8_t ActionIndex;
-//   _SlSpawnEntryFunc_t AsyncEvtHandler; /* place to write pointer to
-//   AsyncEvent
-//                                           handler (calc-ed by Opcode)   */
-//   _SlRxMsgClass_e RxMsgClass;          /* type of Rx message          */
-// } AsyncExt_t;
-
 typedef uint8_t _SlSd_t;
 
-// typedef struct {
-//   _SlCmdCtrl_t *pCmdCtrl;
-//   uint8_t *pTxRxDescBuff;
-//   _SlCmdExt_t *pCmdExt;
-//   AsyncExt_t AsyncExt;
-// } _SlFunctionParams_t;
+typedef struct {
+    uint32_t ChipId;
+    uint8_t FwVersion[4];
+    uint8_t PhyVersion[4];
+    uint8_t NwpVersion[4];
+    uint16_t RomVersion;
+    uint16_t Padding;
+} SlVersionFull;
+
+typedef struct {
+    uint16_t Opcode;
+    uint8_t TxDescLen;
+    uint8_t RxDescLen;
+} _SlCmdCtrl_t;
+
+typedef struct {
+    uint16_t TxPayloadLen;
+    uint16_t RxPayloadLen;
+    uint16_t ActualRxPayloadLen;
+    uint8_t *pTxPayload;
+    uint8_t *pRxPayload;
+} _SlCmdExt_t;
+
+typedef struct _SlArgsData_t {
+    uint8_t *pArgs;
+    uint8_t *pData;
+} _SlArgsData_t;
+
+typedef struct {
+    _WlanAddGetEapProfile_t Args;
+    _i8 Strings[MAX_SSID_LEN + MAX_KEY_LEN + MAX_USER_LEN + MAX_ANON_USER_LEN];
+} _SlProfileParams_t;
+
+typedef struct {
+    _WlanConnectEapCommand_t Args;
+    _i8 Strings[MAX_SSID_LEN + MAX_KEY_LEN + MAX_USER_LEN + MAX_ANON_USER_LEN];
+} _WlanConnectCmd_t;
+
+/* IpV4 socket address */
+typedef struct SlSockAddr_t {
+    uint16_t sa_family;  /* Address family (e.g. , AF_INET)     */
+    uint8_t sa_data[14]; /* Protocol- specific address information*/
+} SlSockAddr_t;
+
+typedef struct WifiProfileConfig {
+    _WlanAddGetProfile_t common;
+    // base station name
+    char *ssid;
+    char *key;
+    // enterprise config
+    // char user[MAX_USER_LEN];
+
+} WifiProfileConfig;
+
+typedef struct {
+    uint32_t Long;
+    uint16_t Short;
+    uint8_t Byte1;
+    uint8_t Byte2;
+} cc3100_nwp_sync_pattern_t;
+
+typedef struct CC3100_RomInfo {
+    uint16_t majorVer;
+    uint16_t minorVer;
+    uint16_t ucSubMinorVerNum;
+    uint16_t ucDay;
+    uint16_t ucMonth;
+    uint16_t ucYear;
+} cc31xx_rom_info_t;
+
+typedef enum wlan_security_t {
+    SEC_TYPE_OPEN = 0,
+    SEC_TYPE_WEP,
+    SEC_TYPE_WPA_WPA2,
+} cc31xx_wlan_security_t;
+
+typedef struct {
+    int8_t SecType;
+    uint8_t SsidLen;
+    uint8_t Priority;
+    uint8_t Bssid[6];
+    uint8_t PasswordLen;
+    uint8_t WepKeyId;
+} cc3100_nwp_80211_profile_t;
+
+typedef struct cc3100_nwp_80211_profile_config_t {
+    cc3100_nwp_80211_profile_t common;
+    // base station name
+    char *ssid;
+    char *key;
+    // enterprise config
+    // char user[MAX_USER_LEN];
+} cc3100_nwp_80211_profile_config_t;
+
+typedef struct {
+    uint16_t opcode;
+    uint16_t len;
+} cc3100_nwp_header_t;
+
+typedef _SlResponseHeader_t cc3100_nwp_resp_header_t;
+
+typedef struct cc3100_SpiStatusReg {
+    uint8_t unknown;
+    uint8_t rxs;
+    uint8_t txs;
+} cc3100_SpiStatusReg;
+
+typedef union cc31xx_cmd_open_sock_t {
+    _SocketCommand_t req;
+    _SocketResponse_t res;
+} cc31xx_cmd_open_sock_t;
+
+/**
+ * @brief cc31xx_cmd_raw_sock_tx is used for receiving raw tranceiver data
+ *
+ */
+typedef union {
+    _sendRecvCommand_t req;
+    _SocketResponse_t res;
+} cc31xx_cmd_raw_sock_t;
+
+/**
+ * @brief cc31xx_cmd_sock_opt_t is used to set socket options
+ *
+ */
+typedef union {
+    _setSockOptCommand_t req;
+    _SocketResponse_t res;
+} cc31xx_cmd_sock_opt_t;
+
+/**
+ * @brief cc31xx_cmd_send_to_t is used to send data over a IP level socket
+ *
+ */
+typedef union {
+    _SocketAddrCommand_u req;
+    /*  no response for 'sendto' commands*/
+} cc31xx_cmd_send_to_t;
+
+/**
+ * @brief cc31xx_cmd_set_wifi_cfg_t used to set wifi settings
+ *
+ */
+typedef union {
+    _WlanCfgSetGet_t req;
+    _BasicResponse_t res;
+} cc31xx_cmd_set_wifi_cfg_t;
+
+/**
+ * @brief cc31xx_cmd_set_wifi_mode_t used to set wifi mode (STA/AP)
+ *
+ */
+typedef union {
+    _WlanSetMode_t req;
+    _BasicResponse_t res;
+} cc31xx_cmd_set_wifi_mode_t;
+
+/**
+ * @brief cc31xx_cmd_connect_t used to connect to a wifi AP
+ *
+ */
+typedef union {
+    _WlanPoliciySetGet_t req;
+    _BasicResponse_t res;
+} cc31xx_cmd_wifi_policy_set_t;
+
+/**
+ * @brief
+ *
+ */
+typedef union {
+    _WlanRxFilterSetCommand_t req;
+    _WlanRxFilterSetCommandReponse_t res;
+} cc31xx_cmd_set_rx_filter_t;
+;
+
+/**
+ * @brief cc31xx_cmd_add_profile_t used to add a wifi connection profile
+ *
+ */
+typedef union {
+    _SlProfileParams_t req;
+    _BasicResponse_t res;
+} cc31xx_cmd_add_profile_t;
+
+/**
+ * @brief cc31xx_cmd_add_profile_t used to add a wifi connection profile
+ *
+ */
+typedef union {
+    _WlanProfileDelGetCommand_t req;
+    _SlProfileParams_t res;
+} cc31xx_cmd_del_get_profile_t;
+
+/**
+ * @brief cc31xx_cmd_connect_t used to connect to a wifi AP
+ *
+ */
+typedef union {
+    _WlanConnectCmd_t req;
+    _BasicResponse_t res;
+} cc31xx_cmd_connect_t;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* AD7746_INTERNAL_H */
+#endif /* CC31XX_PROTOCOL_INTERNAL_H */
        /** @} */

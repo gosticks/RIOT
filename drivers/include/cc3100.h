@@ -27,6 +27,7 @@
 #include "periph/spi.h"
 
 #include "net/netdev.h"
+#include "net/netdev/ieee80211.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,22 +42,36 @@ typedef struct cc3200_params {
 } cc3100_params_t;
 
 typedef struct {
-    netdev_t nd; /**< extends the netdev structure */
+    netdev_ieee80211_t netdev; /**< extends the netdev structure */
     /* device specific fields */
     cc3100_params_t params; /**< hardware interface configuration */
     /* device state fields */
     uint8_t state;    /**< current state of the radio */
     uint16_t options; /**< state of used options */
+    uint16_t sock_id; /**< socket id of the NWP layer two socket */
 } cc3100_t;
+
+typedef struct {
+    spi_t spi; /**< SPI interface the CC31xx module is connected to */
+
+} cc31xx_conf_t;
 
 /**
  * @brief cc3100_setup resets the network processor (NWP)
- * and sets up an SPI connection far later interactions
+ * and sets up an SPI connection for later interactions
  *
  * @param dev
  * @param params
  */
 void cc3100_setup(cc3100_t *dev, const cc3100_params_t *params);
+
+/**
+ * @brief cc3100 get mac address of the nwp.
+ *
+ * @param dev
+ * @param addr
+ */
+void cc3100_get_addr(cc3100_t *dev, uint8_t *addr);
 
 #ifdef __cplusplus
 }

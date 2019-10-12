@@ -17,11 +17,6 @@ extern "C" {
 #define SPI_RATE_20M 20000000
 #define SPI_RATE_30M 30000000
 
-// ROM VERSIONS
-#define ROM_VER_PG1_21 1
-#define ROM_VER_PG1_32 2
-#define ROM_VER_PG1_33 3
-
 #define REG_INT_MASK_SET 0x400F7088
 #define REG_INT_MASK_CLR 0x400F708C
 #define APPS_SOFT_RESET_REG 0x4402D000
@@ -59,8 +54,7 @@ extern "C" {
 #define SL_ALWAYS_ON_POLICY (3)
 #define SL_LONG_SLEEP_INTERVAL_POLICY (4)
 
-/* maximum number of commands in driver operation queue */
-#define REQUEST_QUEUE_SIZE 1
+#define REQUEST_QUEUE_SIZE (2)
 
 /* RX Irqn handler type */
 typedef void (*cc3100_rx_irqn_handler)(void);
@@ -75,46 +69,117 @@ typedef struct cc3100_drv_con_info_t {
 } cc3100_drv_con_info_t;
 
 /**
- * @brief current driver state object
- *
+ * @brief DriverMessage is used to send a message to the NWP. Below is a simple
+ * diagram of a message to the NWP. Each block is transmitted a separate
+ *  +---------------------------+
+ *  |                           |
+ *  |        Msg Header         |   4 byte (OPCODE + length)
+ *  |                           |
+ *  +---------------------------+
+ *  |                           |
+ *  |      Cmd Description      |   n * 4 byte (length set by cmdDescLen)
+ *  |        (optional)         |
+ *  |                           |
+ *  +---------------------------+
+ *  |                           |
+ *  |      Payload Header       |   n * 4 byte (length set by payloadLen)
+ *  |        (optional)         |
+ *  |                           |
+ *  +---------------------------+
+ *  |                           |
+ *  |         Payload           |   n * 4 byte (length set by payloadLen)
+ *  |        (optional)         |
+ *  |                           |
+ *  +---------------------------+
  */
-typedef struct cc3100_drv_state_t {
-    uint8_t curReqCount;
-    volatile struct cc3100_drv_req_t *requestQueue[REQUEST_QUEUE_SIZE];
-    // connection info
-    struct cc3100_drv_con_info_t con;
-    unsigned char macAddr[8];
-} cc3100_drv_state_t;
+typedef struct {
+    uint16_t opcode; /**< specifies opcode & total command size  */
+    bool receiveFlagsViaRxPayload;
+
+    void *desc_buf;    /**< command description */
+    uint16_t desc_len; /**< length of descriptions*/
+
+    /* uint16_t RespOpcode; response opcode */
+
+    void *payload_buf;
+    uint16_t payload_len;
+
+    void *payload_hdr_buf;
+    uint16_t payload_hdr_len;
+} cc31xx_nwp_msg_t;
 
 /**
  * @brief driver request object
  *
  */
-typedef struct cc3100_drv_req_t {
-    uint8_t ID;
-    uint16_t Opcode;
+typedef struct {
+    uint8_t id;
+    uint16_t opcode;
 
     // response description buffers
-    uint8_t *DescBuffer;
-    uint16_t DescBufferSize;
+    uint8_t *desc_buf;
+    uint16_t desc_len;
 
     // Payload buffers
-    uint8_t *PayloadBuffer;
-    uint16_t PayloadBufferSize;
+    uint8_t *payload_buf;
+    uint16_t payload_len;
 
-    // current request state
-    bool Waiting;
+    bool wait;
 
-} cc3100_drv_req_t;
+} cc31xx_nwp_req_t;
+
+typedef struct {
+    volatile cc31xx_nwp_req_t *queue[REQUEST_QUEUE_SIZE];
+    uint8_t cur_len;
+} cc31xx_nwp_queue_t;
+
+/**
+ * @brief CC31xx NWP response object
+ *
+ */
+typedef struct {
+    uint16_t res_len;     /**< full length of response respDesc + payload */
+    uint16_t payload_len; /**< payload length */
+    void *data;           /**< data buffer */
+    void *payload;        /**< payload buffer */
+} cc31xx_nwp_rsp_t;
+
+/**
+ * @brief internal queue used to store awaiting NWP request and handle incoming
+ * responses
+ *
+ */
+static cc31xx_nwp_queue_t _nwp_com = {
+    .queue   = { NULL },
+    .cur_len = 0,
+};
+
+/**
+ * @brief mask and unmask NWP data interrupt
+ *
+ */
+static inline void mask_nwp_rx_irqn(void)
+{
+    (*(unsigned long *)N2A_INT_MASK_SET) = 0x1;
+}
+static inline void unmask_nwp_rx_irqn(void)
+{
+    (*(unsigned long *)N2A_INT_MASK_CLR) = 0x1;
+}
+void cc3100_cmd_handler(cc3100_t *dev, cc3100_nwp_resp_header_t *header);
 
 void cc3100_nwp_graceful_power_off(void);
 void cc3100_nwp_power_on(void);
 void cc3100_nwp_power_off(void);
-int cc3100_init_nwp(void);
-int cc3100_read_from_nwp(void *buf, int len);
-int cc3100_send_to_nwp(const void *buf, int len);
-int cc3100_read_cmd_header(cc3100_nwp_resp_header_t *buf);
-void cc3100_nwp_rx_handler(void *value);
+void cc3100_nwp_rx_handler(void);
+int cc3100_init_nwp(cc3100_t *dev);
+
+uint8_t cc31xx_send_nwp_cmd(cc3100_t *dev, cc31xx_nwp_msg_t *msg,
+                            cc31xx_nwp_rsp_t *res);
+void cc31xx_send_header(cc3100_t *dev, cc3100_nwp_header_t *header);
+int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf);
+// int cc3100_read_from_nwp(void *buf, int len);
+// int cc31xx_send_to_nwp(cc3100_t *dev, const void *buf, int len);
 #ifdef __cplusplus
 }
 #endif

@@ -7,6 +7,7 @@
 
 #include "cpu.h"
 
+#include "cc3100.h"
 #include "include/cc3100_internal.h"
 #include "include/cc3100_protocol.h"
 
@@ -16,6 +17,7 @@
 #define ENABLE_DEBUG (1)
 #include "debug.h"
 
+#define alignDataLen(len) ((len) + 3) & (~3)
 #define uSEC_DELAY(x) (ROM_UtilsDelay(x * 80 / 3))
 #define A2N_INT_STS_RAW (COMMON_REG_BASE + COMMON_REG_O_APPS_INT_STS_RAW)
 #define A2N_INT_STS_CLR (COMMON_REG_BASE + COMMON_REG_O_APPS_INT_STS_CLR)
@@ -43,29 +45,24 @@
 // TODO: finetune this shared buffer and maybe move it to dev
 static uint8_t sharedBuffer[512];
 
-// TODO: maybe merge with dev or params of the driver
-cc3100_drv_state_t state = { .requestQueue = { NULL },
-                             .curReqCount  = 0,
-                             .con          = { .connected = 0 } };
-
-/* forward declarations */
-void cc3100_add_to_drv_queue(volatile cc3100_drv_req_t *req);
-uint8_t cc3100_remove_from_drv_queue(volatile cc3100_drv_req_t *req);
-void cc3100_nwp_rx_handler(void *value);
-void cc3100_cmd_handler(cc3100_nwp_resp_header_t *header);
-
 /**
- * @brief mask and unmask NWP data interrupt
+ * @brief Transmission sequence number used for NWP <-> CPU sync
  *
  */
-static inline void mask_nwp_rx_irqn(void)
-{
-    (*(unsigned long *)N2A_INT_MASK_SET) = 0x1;
-}
-static inline void unmask_nwp_rx_irqn(void)
-{
-    (*(unsigned long *)N2A_INT_MASK_CLR) = 0x1;
-}
+static uint32_t TxSeqNum = 0;
+
+const cc3100_nwp_sync_pattern_t CPU_TO_NWP_SYNC_PATTERN =
+        CPU_TO_NET_CHIP_SYNC_PATTERN;
+const cc3100_nwp_sync_pattern_t CPU_TO_NWP_CNYS_PATTERN =
+        CPU_TO_NET_CHIP_CNYS_PATTERN;
+
+/**
+ * @brief forward declaration
+ *
+ */
+void sliceFirstInBuffer(uint8_t *buf, int len);
+void cc3100_add_to_drv_queue(volatile cc31xx_nwp_req_t *req);
+uint8_t cc3100_remove_from_drv_queue(volatile cc31xx_nwp_req_t *req);
 
 /**
  * @brief register irqn handler
@@ -75,9 +72,9 @@ static inline void unmask_nwp_rx_irqn(void)
 static inline void cc3100_register_nwp_rx_irqn(cc3100_rx_irqn_handler handler)
 {
     ROM_IntRegister(INT_NWPIC, handler);
-    ROM_IntPrioritySet(INT_NWPIC, 0x20);
-    ROM_IntPendClear(INT_NWPIC);
-    ROM_IntEnable(INT_NWPIC);
+    NVIC_SetPriority(NWPIC_IRQn, 2);
+    NVIC_ClearPendingIRQ(NWPIC_IRQn);
+    NVIC_EnableIRQ(NWPIC_IRQn);
 }
 
 /**
@@ -86,6 +83,7 @@ static inline void cc3100_register_nwp_rx_irqn(cc3100_rx_irqn_handler handler)
  */
 static inline void cc3100_unregister_nwp_rx_irqn(void)
 {
+    DEBUG("%s()\n", __FUNCTION__);
     ROM_IntDisable(INT_NWPIC);
     ROM_IntUnregister(INT_NWPIC);
     ROM_IntPendClear(INT_NWPIC);
@@ -93,6 +91,7 @@ static inline void cc3100_unregister_nwp_rx_irqn(void)
 
 void cc3100_nwp_power_on(void)
 {
+    DEBUG("%s()\n", __FUNCTION__);
     /* bring the 1.32 eco out of reset */
     cc3100_reg(NWP_SPARE_REG_5) &= ~NWP_SPARE_REG_5_SLSTOP;
 
@@ -104,11 +103,12 @@ void cc3100_nwp_power_on(void)
     // UnMask Host interrupt
     unmask_nwp_rx_irqn();
 
-    DEBUG("POWER ON COMPLETED \n");
+    DEBUG("cc3100_nwp_power_on: completed \n");
 }
 
 void cc3100_nwp_power_off(void)
 {
+    DEBUG("%s()\n", __FUNCTION__);
     volatile unsigned long apps_int_sts_raw;
     volatile unsigned long sl_stop_ind       = cc3100_reg(NWP_SPARE_REG_5);
     volatile unsigned long nwp_lpds_wake_cfg = cc3100_reg(NWP_LPDS_WAKEUPCFG);
@@ -134,7 +134,6 @@ void cc3100_nwp_power_off(void)
          * condition is fulfilled in less than 1 mSec.
          * Otherwise, in some cases it may require up to 3000 mSec of waiting.
          */
-
         apps_int_sts_raw = cc3100_reg(A2N_INT_STS_RAW);
         while (!(apps_int_sts_raw & 0x1)) {
             apps_int_sts_raw = cc3100_reg(A2N_INT_STS_RAW);
@@ -159,7 +158,7 @@ void cc3100_nwp_power_off(void)
     cc3100_reg(NWP_SPARE_REG_5) |= NWP_SPARE_REG_5_SLSTOP;
 
     uSEC_DELAY(200);
-    DEBUG("POWER OFF COMPLETED");
+    DEBUG("POWER OFF COMPLETED\n");
 }
 
 /**
@@ -169,6 +168,7 @@ void cc3100_nwp_power_off(void)
 // NOTE: probably one of the registers is missaligned right now
 void cc3100_nwp_graceful_power_off(void)
 {
+    DEBUG("%s()\n", __FUNCTION__);
     /* turn of all network services */
     cc3100_reg(COMMON_REG_BASE + ADC_O_ADC_CH_ENABLE) = 1;
 
@@ -199,29 +199,60 @@ void cc3100_nwp_graceful_power_off(void)
 }
 
 /**
+ * @brief read data from NWP SPI
+ *
+ * @param buf read destination buffer
+ * @param len length of bytes to be read (must be a multiple of word length)
+ * @return int returns bytes read
+ */
+int cc3100_read_from_nwp(cc3100_t *dev, void *buf, int len)
+{
+    DEBUG("%s()\n", __FUNCTION__);
+    // spi_transfer_bytes(dev->params.spi, SPI_CS_UNDEF, false, NULL, buf, len);
+    spi_transfer_bytes(1, SPI_CS_UNDEF, false, NULL, buf, len);
+    return len;
+}
+
+/**
+ * @brief send content of buffer buf to the NWP using SPI
+ *
+ * @param buf buffer to be send
+ * @param len length in bytes to be send (must be a multiple of word length)
+ * @return int bytes written to SPI
+ */
+int cc31xx_send_to_nwp(cc3100_t *dev, const void *buf, int len)
+{
+    DEBUG("%s()\n", __FUNCTION__);
+    // spi_transfer_bytes(dev->params.spi, SPI_CS_UNDEF, false, buf, NULL, len);
+    spi_transfer_bytes(1, SPI_CS_UNDEF, false, buf, NULL, len);
+    return len;
+}
+
+/**
  * @brief power on nwp, register RX irqn handler and await nwp response
  *
  * @return int
  */
-int cc3100_init_nwp(void)
+int cc3100_init_nwp(cc3100_t *dev)
 {
+    DEBUG("%s()\n", __FUNCTION__);
+
     // register callback when wifi module is powered back on
-    // cc3100_register_nwp_rx_irqn((cc3100_rx_irqn_handler)cc3100_nwp_rx_handler);
+    cc3100_register_nwp_rx_irqn((cc3100_rx_irqn_handler)cc3100_nwp_rx_handler);
 
-    // disable uDMA channels
-    DEBUG("[NWP] powering on\n");
+    DEBUG("[cc31xx] powering on\n");
 
-    volatile cc3100_drv_req_t r = { .Opcode         = 0x0008,
-                                    .Waiting        = true,
-                                    .DescBufferSize = 0 };
+    volatile cc31xx_nwp_req_t r = { .opcode   = 0x0008,
+                                    .wait     = true,
+                                    .desc_len = 0 };
     cc3100_add_to_drv_queue(&r);
 
     cc3100_nwp_power_on();
-    DEBUG("[WIFI] waiting for NWP power on response\n");
-    // TODO: add a timeout
-    while (r.Waiting) {
-    }
-    DEBUG("[WIFI] NWP booted\n");
+
+    DEBUG("[cc31xx] waiting for on NWP INIT_COMPLETE...\n");
+    // while (r.wait) {
+    // }
+    DEBUG("[cc31xx] NWP booted started\n");
     return 0;
 }
 
@@ -229,68 +260,61 @@ int cc3100_init_nwp(void)
  * @brief cc3100_cmd_handler handles requested driver command responses
  * @param header
  */
-void cc3100_cmd_handler(cc3100_nwp_resp_header_t *header)
+void cc3100_cmd_handler(cc3100_t *dev, cc3100_nwp_resp_header_t *header)
 {
-    DEBUG("[NWP] RECV: \033[1;32m%x \033[0m, len=%d\n",
-          header->GenHeader.opcode, header->GenHeader.len);
+    DEBUG("%s(): opcode=%x len=%d\n", __FUNCTION__, header->GenHeader.Opcode,
+          header->GenHeader.Len);
 
-    volatile cc3100_drv_req_t *req = NULL;
+    volatile cc31xx_nwp_req_t *req = NULL;
 
-    // check if any command is waiting on a response if so we can use
-    // its buffer to avoid having to copy the data
-    for (uint8_t i = 0; state.curReqCount != 0 && i < REQUEST_QUEUE_SIZE; i++) {
-        if (state.requestQueue[i] == NULL ||
-            state.requestQueue[i]->Opcode != header->GenHeader.opcode) {
+    /* check if any command is waiting on a response if so we can use
+       its buffer to avoid having to copy the data */
+    for (uint8_t i = 0; _nwp_com.cur_len != 0 && i < REQUEST_QUEUE_SIZE; i++) {
+        if (_nwp_com.queue[i] == NULL ||
+            _nwp_com.queue[i]->opcode != header->GenHeader.Opcode) {
             continue;
         }
-        req          = state.requestQueue[i];
-        req->Waiting = false;
-        cc3100_remove_from_drv_queue(state.requestQueue[i]);
+        req       = _nwp_com.queue[i];
+        req->wait = false;
+        cc3100_remove_from_drv_queue(_nwp_com.queue[i]);
     }
 
-    // when we have a request read the buffer to the request
+    spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
+
+    /* when we have a request read the buffer to the request */
     if (req != NULL) {
-        int16_t remainder = header->GenHeader.len - req->DescBufferSize;
+        int16_t remainder = header->GenHeader.Len - req->desc_len;
         if (remainder < 0) {
             remainder = 0;
         }
-        if (req->DescBufferSize > 0 && remainder >= 0) {
-            cc3100_read_from_nwp(req->DescBuffer, req->DescBufferSize);
+        if (req->desc_len > 0 && remainder >= 0) {
+            cc3100_read_from_nwp(dev, req->desc_buf, req->desc_len);
         }
 
-        // payload can sometimes be smaller then expected
-        if (remainder < req->PayloadBufferSize) {
+        /* payload can sometimes be smaller then expected */
+        if (remainder < req->payload_len) {
             // DEBUG("NWP: Read payload %d bytes \n", (remainder + 3) & ~0x03);
-            cc3100_read_from_nwp(req->PayloadBuffer, (remainder + 3) & ~0x03);
+            cc3100_read_from_nwp(dev, req->payload_buf,
+                                 (remainder + 3) & ~0x03);
             remainder = 0;
         } else {
-            remainder -= req->PayloadBufferSize;
+            remainder -= req->payload_len;
             // DEBUG("NWP: Read payload %d bytes \n", req->PayloadBufferSize);
-            if (req->PayloadBufferSize > 0 && remainder >= 0) {
-                cc3100_read_from_nwp(req->PayloadBuffer,
-                                     req->PayloadBufferSize);
+            if (req->payload_len > 0 && remainder >= 0) {
+                cc3100_read_from_nwp(dev, req->payload_buf, req->payload_len);
             }
         }
 
-        // read all remaining data
+        /* read all remaining data */
         if (remainder > 0) {
-            cc3100_read_from_nwp(sharedBuffer, remainder);
+            cc3100_read_from_nwp(dev, sharedBuffer, remainder);
         }
     } else {
-        // otherwise read everything into shared buffer;
-        cc3100_read_from_nwp(sharedBuffer, header->GenHeader.len);
+        /* otherwise read everything into shared buffer */
+        cc3100_read_from_nwp(dev, sharedBuffer, header->GenHeader.Len);
     }
 
-    // handle commands
-    // switch (header->GenHeader.Opcode) {
-    // case SL_OPCODE_WLAN_WLANASYNCCONNECTEDRESPONSE:
-    //     handleWlanConnectedResponse();
-    //     break;
-    // case SL_OPCODE_NETAPP_IPACQUIRED:
-    //     handleIpAcquired();
-    //     break;
-    // }
-
+    spi_release(1);
     unmask_nwp_rx_irqn();
 }
 
@@ -298,32 +322,227 @@ void cc3100_cmd_handler(cc3100_nwp_resp_header_t *header)
  * @brief add driver request to the queue, the queue will be checked after each
  * succeffull driver RX callback
  *
- * @param cc3100_drv_req_t
+ * @param cc31xx_nwp_req_t
  */
-void cc3100_add_to_drv_queue(volatile cc3100_drv_req_t *req)
+void cc3100_add_to_drv_queue(volatile cc31xx_nwp_req_t *req)
 {
-    // wait till the queue is free
-    while (state.curReqCount >= REQUEST_QUEUE_SIZE) {
+    DEBUG("%s(opcode=%x)\n", __FUNCTION__, req->opcode);
+    /* wait till the queue is free */
+    while (_nwp_com.cur_len >= REQUEST_QUEUE_SIZE) {
+        DEBUG("waiting for space in queue...\n");
     }
-    state.requestQueue[state.curReqCount] = req;
-    state.curReqCount++;
+    _nwp_com.queue[_nwp_com.cur_len] = req;
+    _nwp_com.cur_len++;
 }
 
 /**
  * @brief remove a driver request from the driver queue in normal operations
  * this happens after a timeout on the command or a NWP response
  *
- * @param cc3100_drv_req_t
+ * @param cc31xx_nwp_req_t
  * @return uint8_t
  */
-uint8_t cc3100_remove_from_drv_queue(volatile cc3100_drv_req_t *req)
+uint8_t cc3100_remove_from_drv_queue(volatile cc31xx_nwp_req_t *req)
 {
+    DEBUG("%s(opcode=%x)\n", __FUNCTION__, req->opcode);
     for (uint8_t i = 0; i < REQUEST_QUEUE_SIZE; i++) {
-        if (state.requestQueue[i] == req) {
-            state.requestQueue[i] = NULL;
-            state.curReqCount--;
+        if (_nwp_com.queue[i] == req) {
+            _nwp_com.queue[i] = NULL;
+            _nwp_com.cur_len--;
             return 1;
         }
+    }
+    return 0;
+}
+
+/**
+ * @brief Validate if sync frame is valid:
+ *  - validate SYNC_PATTERN
+ *  - If N2H_SYNC_PATTERN_SEQ_NUM_EXISTS flag set validate SEQ number
+ *
+ * @param buf
+ */
+static inline bool match_sync_pattern(uint32_t *sync_frame)
+{
+    if (*sync_frame & NWP_SYNC_PATTERN_SEQ_NUM_SET) {
+        return MATCH_WITH_SEQ_NUM(sync_frame, TxSeqNum);
+    } else {
+        return MATCH_WOUT_SEQ_NUM(sync_frame);
+    }
+    return false;
+}
+
+/**
+ * @brief read command header with sync and TxSeqNum validation
+ *
+ * @param buf destination buffer
+ * @param align
+ * @return int
+ */
+int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf)
+{
+    DEBUG("%s(%u)\n", __FUNCTION__, dev->params.spi);
+    /* acquire spi */
+    // spi_acquire(dev->params.spi, SPI_CS_UNDEF, SPI_SUB_MODE_0,
+    // dev->params.spi);
+    DEBUG("1. CANARY\n");
+    spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
+
+    /* write sync pattern to indicate read start */
+    cc31xx_send_to_nwp(dev, &CPU_TO_NWP_CNYS_PATTERN.Short, sizeof(uint32_t));
+    DEBUG("2. CANARY\n");
+    uint32_t SyncCnt = 0;
+
+    /* read the 4 bytes/1 word from NWP until response sync pattern was found.
+     * Since the sync pattern can be surrounded by random trash we compare the
+     * buffer at all possible offsets */
+    // TODO: remove expensice slice operation on favour of pointer magic
+    cc3100_read_from_nwp(dev, buf, 4);
+    while (!match_sync_pattern((uint32_t *)buf)) {
+        /* if we have sliced 4 bytes read 1 word into the buffer */
+        if (0 == (SyncCnt % (uint32_t)4)) {
+            cc3100_read_from_nwp(dev, &buf[4], 4);
+        }
+
+        /* move content of buffer by one byte to the left */
+        sliceFirstInBuffer((uint8_t *)buf, 8);
+
+        /* increase sync counter to keep track of sliced of bytes */
+        SyncCnt++;
+    }
+
+    SyncCnt %= 4;
+
+    // TODO: simplify this step
+    if (SyncCnt > 0) {
+        *(uint32_t *)buf = *(uint32_t *)&buf[4];
+        cc3100_read_from_nwp(dev, &buf[4 - SyncCnt], (uint16_t)SyncCnt);
+    } else {
+        cc3100_read_from_nwp(dev, buf, 4);
+    }
+
+    /* read till sync pattern is found */
+    while (match_sync_pattern((uint32_t *)buf)) {
+        cc3100_read_from_nwp(dev, buf, 4);
+    }
+
+    /* incremenet NWP send counter required for packet validation */
+    TxSeqNum++;
+
+    /* Read NWP command header into the buffer */
+    cc3100_read_from_nwp(dev, &buf[4], 4);
+
+    /* read reamainder of data on the SPI bus, since NWP will only write new
+     * data after all was read/cleared */
+    // TODO: this is potentially problematic since it could overwrite command
+    // headers, maybe use generic scratch buffer
+    cc3100_read_from_nwp(dev, buf,
+                         (uint8_t)((SyncCnt > 0) ? (4 - SyncCnt) : 0));
+
+    spi_release(1);
+    return 0;
+}
+
+void cc31xx_send_header(cc3100_t *dev, cc3100_nwp_header_t *header)
+{
+    cc31xx_send_to_nwp(dev, header, sizeof(cc3100_nwp_header_t));
+}
+
+/**
+ * @brief send a short SYNC command to the NWP. This is send before every
+ * command to notify NWP of incoming data
+ *
+ */
+void _send_short_sync(cc3100_t *dev)
+{
+    cc31xx_send_to_nwp(dev, &CPU_TO_NWP_SYNC_PATTERN.Short, sizeof(uint32_t));
+}
+
+/**
+ * @brief removes the first element in the buffer of length len
+ *
+ */
+void sliceFirstInBuffer(uint8_t *buf, int len)
+{
+    for (uint8_t i = 0; i < (len - 1); i++) {
+        buf[i] = buf[i + 1];
+    }
+    buf[len - 1] = 0;
+}
+
+/**
+ * @brief send a msg to the nwp and block till the response is read
+ *
+ * @param msg
+ * @param res
+ * @return uint8_t
+ */
+uint8_t cc31xx_send_nwp_cmd(cc3100_t *dev, cc31xx_nwp_msg_t *msg,
+                            cc31xx_nwp_rsp_t *res)
+{
+    /* aquire SPI device */
+    // spi_acquire(dev->params.spi, SPI_CS_UNDEF, SPI_SUB_MODE_0,
+    // dev->params.spi);
+    spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
+
+    DEBUG("\033[0;34m[WIFI]\033[0m SEND CMD: \033[1;33m%x\033[0m\n",
+          msg->opcode);
+    /* write a short sync frame to indicate sending of data */
+    _send_short_sync(dev);
+
+    /* compute the total message size (the header length is should be omitted)
+     * because it is always present
+     */
+    uint16_t desc_len = alignDataLen(msg->payload_hdr_len + msg->payload_len +
+                                     msg->desc_len);
+    cc3100_nwp_header_t header = { .opcode = msg->opcode, .len = desc_len };
+    // add request to the request queue
+    volatile cc31xx_nwp_req_t req = { .opcode   = msg->opcode - 0x8000,
+                                      .wait     = true,
+                                      .desc_len = res->res_len,
+                                      .desc_buf = res->data };
+
+    /* set the request payload buffers to the response buffer addresses */
+    if (res->payload != NULL) {
+        req.payload_buf = res->payload;
+        req.payload_len = res->payload_len;
+    }
+
+    /* send the header */
+    cc31xx_send_header(dev, &header);
+
+    /* if a response is expected add request to the waiting queue */
+    if (res != NULL) {
+        cc3100_add_to_drv_queue(&req);
+    } else {
+        req.wait = false;
+    }
+
+    if (msg->desc_len > 0) {
+        /* send command descriptions */
+        cc31xx_send_to_nwp(dev, msg->desc_buf, alignDataLen(msg->desc_len));
+    }
+
+    /* if a payload header is provided send it */
+    if (msg->payload_hdr_len > 0) {
+        /* send command descriptions */
+        cc31xx_send_to_nwp(dev, msg->payload_hdr_buf,
+                           alignDataLen(msg->payload_hdr_len));
+    }
+
+    /* send payload if provided */
+    if (msg->payload_len > 0) {
+        cc31xx_send_to_nwp(dev, msg->payload_buf,
+                           alignDataLen(msg->payload_len));
+    }
+    /* release SPI device */
+    // spi_release(dev->params.spi);
+    spi_release(1);
+
+    // wait for message response (rxHandler will copy the value to the res
+    // buffer)
+    // TODO: handle timeouts
+    while (req.wait) {
     }
     return 0;
 }

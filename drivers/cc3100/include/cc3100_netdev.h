@@ -23,6 +23,9 @@ extern "C" {
  */
 extern const netdev_driver_t netdev_driver_cc3100;
 
+/* Reference pointer for the IRQ handler */
+static cc3100_t *_dev;
+
 #ifdef __cplusplus
 }
 #endif

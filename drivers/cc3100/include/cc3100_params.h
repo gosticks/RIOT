@@ -8,7 +8,7 @@ extern "C" {
 #include "board.h"
 
 #ifndef CC3100_PARAM_SPI
-#define CC3100_PARAM_SPI (SPI_DEV(0))
+#define CC3100_PARAM_SPI (SPI_DEV(1))
 #endif
 #ifndef CC3100_PARAM_SPI_CLK
 #define CC3100_PARAM_SPI_CLK (SPI_CLK_20MHZ)

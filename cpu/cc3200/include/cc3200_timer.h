@@ -31,6 +31,24 @@ extern "C" {
 #endif
 
 /**
+ * @brief Timer modes
+ */
+enum {
+    GPTIMER_ONE_SHOT_MODE = 1,              /**< GPTIMER one-shot mode */
+    GPTIMER_PERIODIC_MODE = 2,              /**< GPTIMER periodic mode */
+    GPTIMER_CAPTURE_MODE  = 3,              /**< GPTIMER capture mode */
+};
+
+/**
+ * @brief Timer width configuration
+ */
+enum {
+    GPTMCFG_32_BIT_TIMER           = 0,     /**< 32-bit timer configuration */
+    GPTMCFG_32_BIT_REAL_TIME_CLOCK = 1,     /**< 32-bit real-time clock */
+    GPTMCFG_16_BIT_TIMER           = 4,     /**< 16-bit timer configuration */
+};
+
+/**
  * @brief Timer interrupts
  * @{
  */
@@ -84,33 +102,36 @@ extern "C" {
  * @{
  */
 typedef struct {
-    uint32_t conf;                /**< configuration */
-    uint32_t timer_a_mode;        /**< timer A Mode */
-    uint32_t timer_b_mode;        /**< timer B Mode */
-    uint32_t ctrl;                /**< timer control register */
-    uint8_t sync[8];              /**< sync */
-    uint32_t intr_mask;           /**< interrupt mask */
-    uint32_t intr_raw_stat;       /**< raw interrupt status */
-    uint32_t masked_intr;         /**< masked interrupt */
-    uint32_t intr_clear;          /**< interrupt clear */
-    uint32_t interval_load_a;     /**< interval load a */
-    uint32_t interval_load_b;     /**< interval load b */
-    uint32_t match_a;             /**< timer match a */
-    uint32_t match_b;             /**< timer match b */
-    uint32_t prescale_a;          /**< timer prescale a */
-    uint32_t prescale_b;          /**< timer prescale b */
-    uint32_t prescale_match_a;    /**< timer prescale match a */
-    uint32_t prescale_match_b;    /**< timer prescale match b */
-    uint32_t timer_a;             /**< timer a */
-    uint32_t timer_b;             /**< timer b */
-    uint32_t val_a;               /**< timer value a */
-    uint32_t val_b;               /**< timer value b */
-    uint32_t rtc_predivide;       /**< RTC Predivide */
-    uint32_t prescale_snaphot_a;  /**< timer prescale snapshot a */
-    uint32_t prescale_snapshot_b; /**< timer prescale snapshot b */
-    uint32_t val_snapshot_a;      /**< timer value snapshot a */
-    uint32_t val_snapshot_b;      /**< timer value snapshot b */
-    uint32_t dma_event;           /**< DMA event */
+    cc3200_reg_t conf;                /**< configuration */
+    cc3200_reg_t timer_a_mode;        /**< timer A Mode */
+    cc3200_reg_t timer_b_mode;        /**< timer B Mode */
+    cc3200_reg_t ctrl;                /**< timer control register */
+    cc3200_reg_t sync;                /**< sync */
+    cc3200_reg_t RESERVED;            /**< RESERVED */
+    cc3200_reg_t intr_mask;           /**< interrupt mask */
+    cc3200_reg_t intr_raw_stat;       /**< raw interrupt status */
+    cc3200_reg_t masked_intr;         /**< masked interrupt */
+    cc3200_reg_t intr_clear;          /**< interrupt clear */
+    cc3200_reg_t interval_load_a;     /**< interval load a */
+    cc3200_reg_t interval_load_b;     /**< interval load b */
+    cc3200_reg_t match_a;             /**< timer match a */
+    cc3200_reg_t match_b;             /**< timer match b */
+    cc3200_reg_t prescale_a;          /**< timer prescale a */
+    cc3200_reg_t prescale_b;          /**< timer prescale b */
+    cc3200_reg_t prescale_match_a;    /**< timer prescale match a */
+    cc3200_reg_t prescale_match_b;    /**< timer prescale match b */
+    cc3200_reg_t timer_a;             /**< timer a */
+    cc3200_reg_t timer_b;             /**< timer b */
+    cc3200_reg_t val_a;               /**< timer value a */
+    cc3200_reg_t val_b;               /**< timer value b */
+    cc3200_reg_t rtc_predivide;       /**< RTC Predivide */
+    cc3200_reg_t prescale_snaphot_a;  /**< timer prescale snapshot a */
+    cc3200_reg_t prescale_snapshot_b; /**< timer prescale snapshot b */
+    cc3200_reg_t val_snapshot_a;      /**< timer value snapshot a */
+    cc3200_reg_t val_snapshot_b;      /**< timer value snapshot b */
+    cc3200_reg_t dma_event;           /**< DMA event */
+    cc3200_reg_t RESERVED1[3924];     /**< Reserved */
+    cc3200_reg_t pp;                  /**< GPTIMER Peripheral Properties */
 } cc3200_timer_t;
 /** @} */
 
