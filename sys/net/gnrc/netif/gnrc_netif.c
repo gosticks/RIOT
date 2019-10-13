@@ -1186,6 +1186,8 @@ static void _test_options(gnrc_netif_t *netif)
             /* make no assumptions about test devices */
             break;
 #endif
+        case NETDEV_TYPE_IEEE80211:
+            return;
         case NETDEV_TYPE_BLE:
         case NETDEV_TYPE_ETHERNET:
         case NETDEV_TYPE_ESP_NOW:
