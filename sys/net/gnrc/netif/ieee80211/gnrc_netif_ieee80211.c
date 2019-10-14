@@ -24,8 +24,8 @@ static const gnrc_netif_ops_t ieee80211_ops = {
 };
 
 gnrc_netif_t *gnrc_netif_ieee80211_create(char *stack, int stacksize,
-                                           char priority, char *name,
-                                           netdev_t *dev)
+                                          char priority, char *name,
+                                          netdev_t *dev)
 {
     DEBUG("gnrc_netif_ieee80211_create\n");
     return gnrc_netif_create(stack, stacksize, priority, name, dev,
@@ -204,76 +204,68 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
 
 static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
-    DEBUG("SEND: \n");
-//     netdev_t *dev              = netif->dev;
-//     netdev_ieee80211_t *state = (netdev_ieee80211_t *)netif->dev;
-//     gnrc_netif_hdr_t *netif_hdr;
-//     const uint8_t *src, *dst = NULL;
-//     int res = 0;
-//     size_t src_len, dst_len;
-//     uint8_t mhr[IEEE802154_MAX_HDR_LEN];
-//     uint8_t flags       = (uint8_t)(state->flags & NETDEV_IEEE802154_SEND_MASK);
-//     le_uint16_t dev_pan = byteorder_btols(byteorder_htons(state->pan));
+    DEBUG("craft a packet sir: \n");
+    netdev_t *dev             = netif->dev;
+    netdev_ieee80211_t *state = (netdev_ieee80211_t *)netif->dev;
+    gnrc_netif_hdr_t *netif_hdr;
+    const uint8_t *src, *dst = NULL;
+    int res = 0;
+    uint8_t mhr[IEEE80211_MAX_HDR_LEN];
+    uint8_t flags = (uint8_t)(state->flags & NETDEV_IEEE80211_SEND_MASK);
 
-//     flags |= IEEE802154_FCF_TYPE_DATA;
-//     if (pkt == NULL) {
-//         DEBUG("_send_ieee80211: pkt was NULL\n");
-//         return -EINVAL;
-//     }
-//     if (pkt->type != GNRC_NETTYPE_NETIF) {
-//         DEBUG("_send_ieee80211: first header is not generic netif header\n");
-//         return -EBADMSG;
-//     }
-//     netif_hdr = pkt->data;
-//     if (netif_hdr->flags & GNRC_NETIF_HDR_FLAGS_MORE_DATA) {
-//         /* Set frame pending field */
-//         flags |= IEEE802154_FCF_FRAME_PEND;
-//     }
-//     /* prepare destination address */
-//     if (netif_hdr->flags & /* If any of these flags is set assume broadcast */
-//         (GNRC_NETIF_HDR_FLAGS_BROADCAST | GNRC_NETIF_HDR_FLAGS_MULTICAST)) {
-//         dst     = ieee80211_addr_bcast;
-//         dst_len = IEEE802154_ADDR_BCAST_LEN;
-//     } else {
-//         dst     = gnrc_netif_hdr_get_dst_addr(netif_hdr);
-//         dst_len = netif_hdr->dst_l2addr_len;
-//     }
-//     src_len = netif_hdr->src_l2addr_len;
-//     if (src_len > 0) {
-//         src = gnrc_netif_hdr_get_src_addr(netif_hdr);
-//     } else {
-//         src_len = netif->l2addr_len;
-//         src     = netif->l2addr;
-//     }
-//     /* fill MAC header, seq should be set by device */
-//     if ((res = ieee80211_set_frame_hdr(mhr, src, src_len, dst, dst_len, flags,
-//                                         state->seq++)) == 0) {
-//         DEBUG("_send_ieee80211: Error preperaring frame\n");
-//         return -EINVAL;
-//     }
+    /* mac packet FC */
+    uint16_t fc = 0;
 
-//     /* prepare iolist for netdev / mac layer */
-//     iolist_t iolist = { .iol_next = (iolist_t *)pkt->next,
-//                         .iol_base = mhr,
-//                         .iol_len  = (size_t)res };
+    /* set data frame type (subtype zero is default data frame) */
+    fc |= IEEE80211_FCF_TYPE_DATA << IEEE80211_FC_TYPE_OFFSET;
 
-// #ifdef MODULE_NETSTATS_L2
-//     if (netif_hdr->flags &
-//         (GNRC_NETIF_HDR_FLAGS_BROADCAST | GNRC_NETIF_HDR_FLAGS_MULTICAST)) {
-//         netif->stats.tx_mcast_count++;
-//     } else {
-//         netif->stats.tx_unicast_count++;
-//     }
-// #endif
-// #ifdef MODULE_GNRC_MAC
-//     if (netif->mac.mac_info & GNRC_NETIF_MAC_INFO_CSMA_ENABLED) {
-//         res = csma_sender_csma_ca_send(dev, &iolist, &netif->mac.csma_conf);
-//     } else {
-//         res = dev->driver->send(dev, &iolist);
-//     }
-// #else
-//     res = dev->driver->send(dev, &iolist);
-// #endif
+    //  flags |= IEEE802154_FCF_TYPE_DATA;
+    if (pkt == NULL) {
+        DEBUG("_send_ieee80211: pkt was NULL\n");
+        return -EINVAL;
+    }
+    if (pkt->type != GNRC_NETTYPE_NETIF) {
+            DEBUG("_send_ieee80211: first header is not generic netif header\n"); 
+            return -EBADMSG;
+    }
+    netif_hdr = pkt->data;
+    if (netif_hdr->flags & GNRC_NETIF_HDR_FLAGS_MORE_DATA) {
+        /* Set frame pending field */
+        flags |= IEEE80211_FCF_FRAME_MORE_DATA;
+    }
+    /* prepare destination address */
+    if (netif_hdr->flags & /* If any of these flags is set assume
+    broadcast */
+        (GNRC_NETIF_HDR_FLAGS_BROADCAST | GNRC_NETIF_HDR_FLAGS_MULTICAST)) {
+        dst     = ieee80211_addr_bcast;
+    } else {
+        dst     = gnrc_netif_hdr_get_dst_addr(netif_hdr);
+    }
+    src = gnrc_netif_hdr_get_src_addr(netif_hdr);
+   
+    /* fill MAC header, seq should be set by device */
+    if ((res = ieee80211_set_frame_hdr(
+        mhr, src, dst, NULL, flags,
+                                       state->seq++)) == 0) {
+        DEBUG("_send_ieee80211: Error preperaring frame\n");
+        return -EINVAL;
+    }
+
+    /* prepare iolist for netdev / mac layer */
+    iolist_t iolist = { .iol_next = (iolist_t *)pkt->next,
+                        .iol_base = mhr,
+                        .iol_len  = (size_t)res };
+
+    #ifdef MODULE_NETSTATS_L2
+        if (netif_hdr->flags &
+            (GNRC_NETIF_HDR_FLAGS_BROADCAST |
+            GNRC_NETIF_HDR_FLAGS_MULTICAST)) { netif->stats.tx_mcast_count++;
+        } else {
+            netif->stats.tx_unicast_count++;
+        }
+    #endif
+
+    res = dev->driver->send(dev, &iolist);
 
     /* release old data */
     gnrc_pktbuf_release(pkt);
