@@ -26,7 +26,7 @@ extern "C" {
 /**
  * @brief   Default start frame delimiter
  */
-#define IEEE802154_SFD (0xa7)
+#define IEEE80211_SFD (0xa7)
 
 /**
  * @brief IEEE 802.11 address lengths
@@ -45,51 +45,97 @@ extern "C" {
 #define IEEE80211_MAX_HDR_LEN (36U)
 #define IEEE80211_MIN_FRAME_LEN (IEEE80211_MAX_HDR_LEN)
 
-#define IEEE802154_FCF_LEN (2U)
-#define IEEE802154_FCS_LEN (2U)
+#define IEEE80211_FCF_LEN (2U)
+#define IEEE80211_FCS_LEN (2U)
 
-#define IEEE802154_FCF_TYPE_MASK (0x07)
-#define IEEE802154_FCF_TYPE_BEACON (0x00)
-#define IEEE802154_FCF_TYPE_DATA (0x01)
-#define IEEE802154_FCF_TYPE_ACK (0x02)
-#define IEEE802154_FCF_TYPE_MACCMD (0x03)
+/** IEEE802.11 frame types */
+#define IEEE80211_FCF_TYPE_MNG (0U)
+#define IEEE80211_FCF_TYPE_CTRL (1U)
+#define IEEE80211_FCF_TYPE_DATA (2U)
+#define IEEE80211_FC_TYPE_OFFSET (12U)
 
-#define IEEE802154_FCF_SECURITY_EN (0x08) /**< enable security */
-#define IEEE802154_FCF_FRAME_PEND (0x10)  /**< follow-up frame is pending */
-#define IEEE802154_FCF_ACK_REQ \
-    (0x20) /**< acknowledgement requested from receiver */
-#define IEEE802154_FCF_PAN_COMP (0x40) /**< compress source PAN ID */
+/* FC flags */
+#define IEEE80211_FCF_FRAME_MORE_DATA (0x4)
+#define IEEE80211_FCF_FRAME_TO_DS (0x40)
+#define IEEE80211_FCF_FRAME_FROM_DS (0x80)
 
-#define IEEE802154_FCF_DST_ADDR_MASK (0x0c)
-#define IEEE802154_FCF_DST_ADDR_VOID (0x00) /**< no destination address */
-#define IEEE802154_FCF_DST_ADDR_RESV (0x04) /**< reserved address mode */
-#define IEEE802154_FCF_DST_ADDR_SHORT \
-    (0x08) /**< destination address length is 2 */
-#define IEEE802154_FCF_DST_ADDR_LONG \
-    (0x0c) /**< destination address length is 8 */
+#define IEEE80211_FCF_TYPE_MASK (0x3000)
+#define IEEE80211_FCF_SUBTYPE_MASK (0xF00)
 
-#define IEEE802154_FCF_VERS_MASK (0x30)
-#define IEEE802154_FCF_VERS_V0 (0x00)
-#define IEEE802154_FCF_VERS_V1 (0x10)
+#define IEEE80211_FCF_VERS_MASK (0xC000)
+#define IEEE80211_FCF_VERS_V0 (0x00)
 
-#define IEEE802154_FCF_SRC_ADDR_MASK (0xc0)
-#define IEEE802154_FCF_SRC_ADDR_VOID (0x00)  /**< no source address */
-#define IEEE802154_FCF_SRC_ADDR_RESV (0x40)  /**< reserved address mode */
-#define IEEE802154_FCF_SRC_ADDR_SHORT (0x80) /**< source address length is 2 \
-                                              */
-#define IEEE802154_FCF_SRC_ADDR_LONG (0xc0)  /**< source address length is 8 */
+#define IEEE80211_FCF_SUBTYPE_FC_VAL (subtype) subtype << 8
+
+/** IEEE802.11 frame subtypes */
+typedef enum {
+    IEEE80211_FCF_MNG_SUBTYPE_AS_REQ = 0,    /**< Association Request */
+    IEEE80211_FCF_MNG_SUBTYPE_AS_RESP,       /**< Association Response */
+    IEEE80211_FCF_MNG_SUBTYPE_RAS_REQ,       /**< Reassociation Request */
+    IEEE80211_FCF_MNG_SUBTYPE_RAS_RESP,      /**< Reassociation Response */
+    IEEE80211_FCF_MNG_SUBTYPE_PROBE_REQ,     /**< Probe Response */
+    IEEE80211_FCF_MNG_SUBTYPE_PROBE_RESP,    /**< Probe Response */
+    IEEE80211_FCF_MNG_SUBTYPE_TIMING_ADD,    /**< Timing Advertisement */
+    IEEE80211_FCF_MNG_SUBTYPE_RESERVED_1,    /**< Reserved */
+    IEEE80211_FCF_MNG_SUBTYPE_WL_BEACON,     /**< Beacon */
+    IEEE80211_FCF_MNG_SUBTYPE_ATIM,          /**< ATIM */
+    IEEE80211_FCF_MNG_SUBTYPE_DIAS,          /**< disassociation */
+    IEEE80211_FCF_MNG_SUBTYPE_AUTH,          /**< Authentication */
+    IEEE80211_FCF_MNG_SUBTYPE_DEAUTH,        /**< Deauthentication */
+    IEEE80211_FCF_MNG_SUBTYPE_ACTION,        /**< Action */
+    IEEE80211_FCF_MNG_SUBTYPE_ACTION_NO_ACK, /**< Action No Ack */
+    IEEE80211_FCF_MNG_SUBTYPE_RESERVED_2,    /**< reserved 2 */
+} ieee80211_mng_subtype_t;
+
+typedef enum {
+    IEEE80211_FCF_CTRL_SUBTYPE_BEAM_RP = 4,   /**< Beamform Report Poll */
+    IEEE80211_FCF_CTRL_SUBTYPE_VHT_NDP_AN,    /**< VHT NDP Announcement */
+    IEEE80211_FCF_CTRL_SUBTYPE_CTRL_FR_EXT,   /**< Control Frame Extension */
+    IEEE80211_FCF_CTRL_SUBTYPE_CTRL_WRAPPER,  /**< Control Wrapper */
+    IEEE80211_FCF_CTRL_SUBTYPE_BLOCK_ACK_REQ, /**< Block ACK request */
+    IEEE80211_FCF_CTRL_SUBTYPE_BLOCK_ACK,     /**< Block ACK */
+    IEEE80211_FCF_CTRL_SUBTYPE_PS_POLL,       /**< PS-Poll */
+    IEEE80211_FCF_CTRL_SUBTYPE_RTS,           /**< RTS */
+    IEEE80211_FCF_CTRL_SUBTYPE_CTS,           /**< CTS */
+    IEEE80211_FCF_CTRL_SUBTYPE_WL_ACK,        /**< ACK */
+    IEEE80211_FCF_CTRL_SUBTYPE_CF_END,        /**< CF End */
+    IEEE80211_FCF_CTRL_SUBTYPE_CF_END_ACK,    /**< CF End +CF Ack */
+} ieee80211_ctrl_subtype_t;
+
+/* Frame control field bitfield */
+typedef struct {
+    uint8_t version : 2;            // protocol version
+    uint8_t type : 2; // type
+    uint8_t subtype : 4;            // subtype
+    uint8_t to_ds : 1;                 // to destination flag
+    uint8_t from_ds : 1;               // from destination flag
+    uint8_t more_framents : 1;         // more frames flag
+    uint8_t retry : 1;                 // retry flag
+    uint8_t pm : 1;                    // power management
+    uint8_t more_data : 1;             // more_data
+    uint8_t protected_frame : 1;       // protected frame
+    uint8_t htc_order : 1; // +HTC / Order (set to 1 in a non-QoS Data Frame)
+} ieee80211_frame_control_t;
+
+#define IEEE80211_FCF_DST_ADDR_MASK (0x0c)
+#define IEEE80211_FCF_DST_ADDR_VOID (0x00) /**< no destination address */
+
+
+#define IEEE80211_FCF_SRC_ADDR_MASK (0xc0)
+#define IEEE80211_FCF_SRC_ADDR_VOID (0x00) /**< no source address */
+#define IEEE80211_FCF_SRC_ADDR_RESV (0x40) /**< reserved address mode */
 /** @} */
 
 /**
  * @brief   Channel ranges
  * @{
  */
-#define IEEE802154_CHANNEL_MIN_SUBGHZ \
+#define IEEE80211_CHANNEL_MIN_SUBGHZ \
     (0U) /**< Minimum channel for sub-GHz band */
-#define IEEE802154_CHANNEL_MAX_SUBGHZ \
+#define IEEE80211_CHANNEL_MAX_SUBGHZ \
     (10U)                            /**< Maximum channel for sub-GHz band */
-#define IEEE802154_CHANNEL_MIN (11U) /**< Minimum channel for 2.4 GHz band */
-#define IEEE802154_CHANNEL_MAX (26U) /**< Maximum channel for 2.4 GHz band */
+#define IEEE80211_CHANNEL_MIN (1U) /**< Minimum channel for 2.4 GHz band */
+#define IEEE80211_CHANNEL_MAX (12U) /**< Maximum channel for 2.4 GHz band */
 /** @} */
 
 /* 802.11g maximum (MSDU) frame size without support for MPDU/A-MPDU */
@@ -119,16 +165,10 @@ extern const uint8_t ieee80211_addr_bcast[IEEE80211_ADDRESS_LEN];
 /** @} */
 
 /**
- * @defgroup net_ieee802154_conf    IEEE802.15.4 compile configurations
+ * @defgroup net_ieee80211_conf    IEEE802.11 compile configurations
  * @ingroup  config
  * @{
  */
-/**
- * @brief IEEE802.15.4 default sub-GHZ channel
- */
-#ifndef IEEE802154_DEFAULT_SUBGHZ_CHANNEL
-#define IEEE802154_DEFAULT_SUBGHZ_CHANNEL (5U)
-#endif
 
 /**
  * @brief IEEE802.11 default channel
@@ -137,74 +177,24 @@ extern const uint8_t ieee80211_addr_bcast[IEEE80211_ADDRESS_LEN];
 #define IEEE80211_DEFAULT_CHANNEL (7U)
 #endif
 
-/**
- * @brief IEEE802.15.4 default sub-GHZ page
- */
-#ifndef IEEE802154_DEFAULT_SUBGHZ_PAGE
-#define IEEE802154_DEFAULT_SUBGHZ_PAGE (2U)
-#endif
 
 /**
- * @brief IEEE802.15.4 default PANID
+ * @brief IEEE802.11 default TX power (in dBm)
  */
-#ifndef IEEE802154_DEFAULT_PANID
-#define IEEE802154_DEFAULT_PANID (0x0023U)
-#endif
-
-/**
- * @brief IEEE802.15.4 Broadcast PANID
- */
-#ifndef IEEE802154_PANID_BCAST
-#define IEEE802154_PANID_BCAST \
-    {                          \
-        0xff, 0xff             \
-    }
-#endif
-
-/**
- * @brief IEEE802.15.4 default TX power (in dBm)
- */
-#ifndef IEEE802154_DEFAULT_TXPOWER
-#define IEEE802154_DEFAULT_TXPOWER (0)
+#ifndef IEEE80211_DEFAULT_TXPOWER
+#define IEEE80211_DEFAULT_TXPOWER (0)
 #endif
 /** @} */
 
 /**
- * @brief   Initializes an IEEE 802.15.4 MAC frame header in @p buf.
+ * @brief   Initializes an IEEE 802.11 MAC frame header in @p buf.
  *
- * @pre Resulting header must fit in memory allocated at @p buf.
- *
- * @see IEEE Std 802.15.4-2011, 5.2.1 General MAC frame format.
- *
- * If @p dst is NULL the IEEE802154_FCF_ACK_REQ will be unset to prevent
- * flooding the network.
  *
  * @param[out] buf      Target memory for frame header.
- * @param[in] src       Source address for frame in network byteorder.
- *                      May be NULL if @ref IEEE802154_FCF_SRC_ADDR_VOID is set
- *                      in @p flags.
- * @param[in] src_len   Length of @p src. Legal values are:
- *                      * 0 (will set @ref IEEE802154_FCF_SRC_ADDR_VOID in MHR)
- *                      * 2 (will set @ref IEEE802154_FCF_SRC_ADDR_SHORT in MHR)
- *                      * 8 (will set @ref IEEE802154_FCF_SRC_ADDR_LONG in MHR)
+ * @param[in] src       Source address for frame in network byteorder.s.
  * @param[in] dst       Destination address for frame in network byteorder.
- *                      May be NULL if @ref IEEE802154_FCF_SRC_ADDR_VOID is set
- *                      in @p flags.
- * @param[in] dst_len   Length of @p dst. Legal values are:
- *                      * 0 (will set @ref IEEE802154_FCF_DST_ADDR_VOID in MHR)
- *                      * 2 (will set @ref IEEE802154_FCF_DST_ADDR_SHORT in MHR)
- *                      * 8 (will set @ref IEEE802154_FCF_DST_ADDR_LONG in MHR)
- * @param[in] src_pan   Source PAN ID in little-endian. May be 0 if
- *                      @ref IEEE802154_FCF_PAN_COMP is set in @p flags.
- *                      Otherwise, it will be ignored, when
- *                      @ref IEEE802154_FCF_PAN_COMP is set.
- * @param[in] dst_pan   Destination PAN ID in little-endian.
- * @param[in] flags     Flags for the frame. These are interchangable with the
- *                      first byte of the IEEE 802.15.4 FCF. This means that
- *                      it encompasses the type values,
- *                      @ref IEEE802154_FCF_SECURITY_EN,
- *                      @ref IEEE802154_FCF_FRAME_PEND, and
- *                      @ref IEEE802154_FCF_ACK_REQ.
+ * @param[in] bssid     Currently associated BSSID.
+ * @param[in] flags     Frame Control field flags
  * @param[in] seq       Sequence number for frame.
  *
  * The version field in the FCF will be set implicitly to version 1.
@@ -212,9 +202,9 @@ extern const uint8_t ieee80211_addr_bcast[IEEE80211_ADDRESS_LEN];
  * @return  Size of frame header on success.
  * @return  0, on error (flags set to unexpected state).
  */
-size_t ieee80211_set_frame_hdr(uint8_t *buf, const uint8_t *src, size_t src_len,
-                               const uint8_t *dst, size_t dst_len,
-                               uint8_t flags, uint8_t seq);
+size_t ieee80211_set_frame_hdr(uint8_t *buf, const uint8_t *src, 
+                               const uint8_t *dst, const uint8_t *bssid,
+                               uint16_t fc, uint8_t seq);
 
 /**
  * @brief   Get length of MAC header.
@@ -279,9 +269,6 @@ static inline uint8_t ieee80211_get_seq(const uint8_t *mhr)
 static inline eui64_t *ieee80211_get_iid(eui64_t *eui64, const uint8_t *addr,
                                          size_t addr_len)
 {
-    if (addr_len != 6) {
-        return NULL;
-    }
     int i = 0;
 
     eui64->uint8[0] = eui64->uint8[1] = 0;
