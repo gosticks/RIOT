@@ -107,7 +107,9 @@ ifneq (,$(filter cc2420,$(USEMODULE)))
 endif
 
 ifneq (,$(filter cc3100,$(USEMODULE)))
+  USEMODULE += irq_handler
   USEMODULE += xtimer
+  USEMODULE += netopt
   USEMODULE += netif
   USEMODULE += ieee80211
   USEMODULE += netdev_ieee80211

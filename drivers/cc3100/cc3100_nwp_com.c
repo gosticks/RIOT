@@ -47,7 +47,7 @@ void printChars(char *str, uint16_t len)
 
 void printWifiConfig(WifiProfileConfig *conf)
 {
-    printf("[WIFI] connecting to network SSID=\"");
+    printf("[cc31xx] connecting to network SSID=\"");
     printChars(conf->ssid, conf->common.SsidLen);
     printf("\" KEY=\"");
     printChars(conf->key, conf->common.PasswordLen);
@@ -151,9 +151,12 @@ int16_t _nwp_get_net_cfg(cc3100_t *dev, cc31xx_net_cfg_t configId,
     // also copy over configuration options
     *configOpt = cmdDesc.ConfigOpt;
 
+#if ENABLE_DEBUG
     if (cmdDesc.Status != 0) {
-        printf("[WIFI] getNetConfig(): non zero status %d \n", cmdDesc.Status);
+        printf("[cc31xx] _nwp_get_net_cfg returned status -> %d\n",
+               cmdDesc.Status);
     }
+#endif
 
     // return status
     return cmdDesc.Status;
@@ -229,7 +232,7 @@ int16_t _nwp_set_wifi_cfg(cc3100_t *dev, uint8_t configId, uint8_t configOpt,
     cc31xx_send_nwp_cmd(dev, &msg, &res);
 
     if (m.res.status != 0) {
-        printf("[WIFI] setWifiConfig(): non zero status %d", m.res.status);
+        printf("[cc31xx] setWifiConfig(): non zero status %d", m.res.status);
     }
 
     return m.res.status;
@@ -256,7 +259,7 @@ int16_t _nwp_set_wifi_mode(cc3100_t *dev, uint8_t mode)
     cc31xx_send_nwp_cmd(dev, &msg, &res);
 
     if (m.res.status != 0) {
-        printf("[WIFI] setWifiConfig(): non zero status %d", m.res.status);
+        printf("[cc31xx] setWifiConfig(): non zero status %d", m.res.status);
     }
 
     return m.res.status;
@@ -401,15 +404,15 @@ int16_t _nwp_get_profile(cc3100_t *dev, int16_t index)
 #if ENABLE_DEBUG
     // try printing profile name
     if (m.res.Args.Common.SsidLen != 0) {
-        printf("[WIFI] read profile SsidLen=%i SSID=",
+        printf("[cc31xx] read profile SsidLen=%i SSID=",
                m.res.Args.Common.SsidLen);
         printChars((char *)EAP_PROFILE_SSID_STRING(&m.res),
                    m.res.Args.Common.SsidLen);
         printf("\n");
     } else {
-        DEBUG("[WIFI] read profile SsidLen=0 \n");
+        DEBUG("[cc31xx] read profile SsidLen=0 \n");
     }
-    DEBUG("[WIFI] Profile Info: secType=%d \n", m.res.Args.Common.SecType);
+    DEBUG("[cc31xx] Profile Info: secType=%d \n", m.res.Args.Common.SecType);
 #endif
     return 0;
 }
@@ -468,7 +471,7 @@ int16_t _nwp_disconnect(cc3100_t *dev)
         return -1;
     }
     if (resp.status == 0) {
-        DEBUG("[WIFI] Disconnected from network (%d) \n", resp.status);
+        DEBUG("[cc31xx] Disconnected from network (%d) \n", resp.status);
         // _nwp.con.connected = false;
     }
     return resp.status;
@@ -530,13 +533,13 @@ int16_t _nwp_sock_create(cc3100_t *dev, int16_t domain, int16_t type,
     };
 
     if (cc31xx_send_nwp_cmd(dev, &msg, &res) != 0) {
-        DEBUG("[WIFI] failed to open socket \n");
+        DEBUG("[cc31xx] failed to open socket \n");
         return -1;
     }
-    DEBUG("[WIFI] openSocket SOCK=%d StatusOrLen=%d \n", m.res.sd,
+    DEBUG("[cc31xx] socket open ID=%d Status=%d \n", m.res.sd,
           m.res.statusOrLen);
     if (m.res.statusOrLen < 0) {
-        DEBUG("[WIFI] failed to open socket status(%d) \n", m.res.statusOrLen);
+        DEBUG("[cc31xx] failed to open socket status(%d) \n", m.res.statusOrLen);
 #if ENABLE_DEBUG
         switch (m.res.statusOrLen) {
         case SL_CONNECTION_PENDING:
@@ -629,9 +632,10 @@ int16_t _nwp_send_frame_to(cc3100_t *dev, int16_t sock, void *buf, uint16_t len,
  * @param len
  * @return int16_t
  */
-int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, int16_t len,
+int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, size_t len,
                             int16_t options)
 {
+    DEBUG("%s() packet_len = %d \n", __FUNCTION__, len);
     // TODO: add sync for multiple sockets for now only one socket is
     // supported check mutex
     _sendRecvCommand_t data = { 0 };
@@ -669,9 +673,9 @@ int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, int16_t len,
         // increment buffer offset
         bufOffset += packetLen;
 
-        // printf("Sending package len=%d chunk %d of %d\n", msg.payload_len,
-        // i,
-        //        chunksCount);
+        DEBUG("Sending package len=%d chunk %d of %d\n", msg.payload_len,
+         i,
+                chunksCount);
 
         // send socket data
         if (cc31xx_send_nwp_cmd(dev, &msg, NULL) != 0) {
@@ -708,7 +712,7 @@ int16_t _nwp_set_wifi_filter(cc3100_t *dev, uint8_t filterOptions,
     };
 
     if (cc31xx_send_nwp_cmd(dev, &msg, &res) != 0) {
-        printf("[WIFI] failed to set Rx Filter \n");
+        printf("[cc31xx] failed to set Rx Filter \n");
         return -1;
     }
     return m.res.Status;
@@ -749,7 +753,7 @@ int16_t _nwp_set_sock_opt(cc3100_t *dev, uint16_t sock, uint16_t level,
     };
 
     if (cc31xx_send_nwp_cmd(dev, &msg, &res) != 0) {
-        printf("[WIFI] failed to set Rx Filter \n");
+        printf("[cc31xx] failed to set Rx Filter \n");
         return -1;
     }
     return m.res.statusOrLen;

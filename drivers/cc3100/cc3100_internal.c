@@ -4,12 +4,15 @@
 #include "vendor/hw_hib1p2.h"
 #include "vendor/hw_ocp_shared.h"
 #include "vendor/rom.h"
+#include "vendor/socket.h"
 
 #include "cpu.h"
 
 #include "cc3100.h"
 #include "include/cc3100_internal.h"
+#include "include/cc3100_nwp_com.h"
 #include "include/cc3100_protocol.h"
+#include "include/cc3100_netdev.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -35,6 +38,22 @@
 
 #define N2A_INT_ACK (COMMON_REG_BASE + COMMON_REG_O_NW_INT_ACK)
 
+/**
+ * @brief utility for printing a EUI48 address
+ *
+ * @param addr
+ */
+void printMacAddr(unsigned char *addr)
+{
+    printf("%02x:", addr[0]);
+    printf("%02x:", addr[1]);
+    printf("%02x:", addr[2]);
+    printf("%02x:", addr[3]);
+    printf("%02x:", addr[4]);
+    printf("%02x", addr[5]);
+    printf("\n");
+}
+
 /* WAKENWP - (ARCM_BASE + APPS_RCM_O_APPS_TO_NWP_WAKE_REQUEST)
     - Bits 31:01 - Reserved
     - Bits 00    - Wake Request to NWP
@@ -45,11 +64,15 @@
 // TODO: finetune this shared buffer and maybe move it to dev
 static uint8_t sharedBuffer[512];
 
+/* static header buffer */
+static cc3100_nwp_resp_header_t _cmd_header = {};
+
 /**
  * @brief Transmission sequence number used for NWP <-> CPU sync
  *
  */
 static uint32_t TxSeqNum = 0;
+
 
 const cc3100_nwp_sync_pattern_t CPU_TO_NWP_SYNC_PATTERN =
         CPU_TO_NET_CHIP_SYNC_PATTERN;
@@ -63,6 +86,31 @@ const cc3100_nwp_sync_pattern_t CPU_TO_NWP_CNYS_PATTERN =
 void sliceFirstInBuffer(uint8_t *buf, int len);
 void cc3100_add_to_drv_queue(volatile cc31xx_nwp_req_t *req);
 uint8_t cc3100_remove_from_drv_queue(volatile cc31xx_nwp_req_t *req);
+
+
+/**
+ * @brief cc3100_nwp_rx_handler is the default RX handlers for the NWP
+ *
+ */
+void cc3100_nwp_rx_handler(void)
+{
+
+    DEBUG("%s()\n", __FUNCTION__);
+
+    /* reset header buffer values */
+    _cmd_header.GenHeader.Opcode  = 0;
+    _cmd_header.GenHeader.Len     = 0;
+    _cmd_header.TxPoolCnt         = 0;
+    _cmd_header.DevStatus         = 0;
+    _cmd_header.SocketTXFailure   = 0;
+    _cmd_header.SocketNonBlocking = 0;
+
+    cc31xx_read_cmd_header(_dev, &_cmd_header);
+    cc3100_cmd_handler(_dev, &_cmd_header);
+
+    /* mark that a interrupt was handled */
+    _cc31xx_isr_state = 0;
+}
 
 /**
  * @brief register irqn handler
@@ -109,9 +157,9 @@ void cc3100_nwp_power_on(void)
 void cc3100_nwp_power_off(void)
 {
     DEBUG("%s()\n", __FUNCTION__);
-    volatile unsigned long apps_int_sts_raw;
-    volatile unsigned long sl_stop_ind       = cc3100_reg(NWP_SPARE_REG_5);
-    volatile unsigned long nwp_lpds_wake_cfg = cc3100_reg(NWP_LPDS_WAKEUPCFG);
+    uint32_t apps_int_sts_raw;
+    uint32_t sl_stop_ind       = cc3100_reg(NWP_SPARE_REG_5);
+    uint32_t nwp_lpds_wake_cfg = cc3100_reg(NWP_LPDS_WAKEUPCFG);
     if ((nwp_lpds_wake_cfg != NWP_LPDS_WAKEUPCFG_APPS2NWP) && /* Check for NWP
                                                                  POR condition -
                                                                  APPS2NWP is
@@ -140,7 +188,7 @@ void cc3100_nwp_power_off(void)
         }
 
         /* wait till nwp powers off */
-        volatile unsigned long nwp_wakup_ind = cc3100_reg(NWP_LPDS_WAKEUPCFG);
+        uint32_t nwp_wakup_ind = cc3100_reg(NWP_LPDS_WAKEUPCFG);
         while (nwp_wakup_ind != NWP_LPDS_WAKEUPCFG_APPS2NWP) {
             nwp_wakup_ind = cc3100_reg(NWP_LPDS_WAKEUPCFG);
         }
@@ -158,7 +206,7 @@ void cc3100_nwp_power_off(void)
     cc3100_reg(NWP_SPARE_REG_5) |= NWP_SPARE_REG_5_SLSTOP;
 
     uSEC_DELAY(200);
-    DEBUG("POWER OFF COMPLETED\n");
+    DEBUG("[cc31xx] NWP power off completed\n");
 }
 
 /**
@@ -250,9 +298,10 @@ int cc3100_init_nwp(cc3100_t *dev)
     cc3100_nwp_power_on();
 
     DEBUG("[cc31xx] waiting for on NWP INIT_COMPLETE...\n");
-    // while (r.wait) {
-    // }
-    DEBUG("[cc31xx] NWP booted started\n");
+    while (r.wait) {
+        thread_yield();
+    }
+    DEBUG("[cc31xx] NWP ready for commands!\n");
     return 0;
 }
 
@@ -385,12 +434,10 @@ int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf)
     /* acquire spi */
     // spi_acquire(dev->params.spi, SPI_CS_UNDEF, SPI_SUB_MODE_0,
     // dev->params.spi);
-    DEBUG("1. CANARY\n");
     spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
 
     /* write sync pattern to indicate read start */
     cc31xx_send_to_nwp(dev, &CPU_TO_NWP_CNYS_PATTERN.Short, sizeof(uint32_t));
-    DEBUG("2. CANARY\n");
     uint32_t SyncCnt = 0;
 
     /* read the 4 bytes/1 word from NWP until response sync pattern was found.
@@ -543,6 +590,71 @@ uint8_t cc31xx_send_nwp_cmd(cc3100_t *dev, cc31xx_nwp_msg_t *msg,
     // buffer)
     // TODO: handle timeouts
     while (req.wait) {
+        thread_yield();
     }
+    return 0;
+}
+
+/**
+ * @brief initiate NWP in its default configuration
+ *
+ */
+uint16_t _nwp_setup(cc3100_t *dev)
+{
+    /* register handler */
+    int16_t err = 0;
+    /* delete existing profiles */
+    err = _nwp_del_profile(dev, 0xFF);
+    if (err != 0) {
+        DEBUG("[cc31xx] failed to delete profiles\n");
+    }
+
+    if (_nwp_set_wifi_policy(dev, SL_POLICY_SCAN, SL_SCAN_POLICY(0)) != 0) {
+        DEBUG("[cc31xx] failed to set scan policy");
+    }
+    if (_nwp_set_wifi_policy(dev, SL_POLICY_CONNECTION,
+                             SL_CONNECTION_POLICY(0, 0, 0, 0, 0)) != 0) {
+        DEBUG("[cc31xx] failed to set connect policy");
+    }
+
+    // if (_nwp_disconnect(dev) != 0) {
+    //     DEBUG("[cc31xx] failed to disconnect \n");
+    // }
+
+    // disable DHCP
+    uint8_t dhcp_disable = 1;
+    if (_nwp_set_net_cfg(dev, 4, 0, 1, &dhcp_disable) != 0) {
+        DEBUG("[cc31xx] failed to disable DHCP\n");
+    }
+
+    // setup wifi power
+    // power is a reverse metric (dB)
+    uint8_t tx_power = 0;
+    if (_nwp_set_wifi_cfg(dev, 1, 10, 1, &tx_power) != 0) {
+        DEBUG("[cc31xx] failed to set NWP TX power\n");
+    }
+
+    uint8_t filter_cfg[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+    // reset rx filters
+    if (_nwp_set_wifi_filter(dev, 1, filter_cfg,
+                             sizeof(_WlanRxFilterOperationCommandBuff_t) !=
+                                     0)) {
+        DEBUG("[cc31xx]failed to reset wifi filters\n");
+    }
+    // get device mac address
+    if (_nwp_get_net_cfg(dev, SL_MAC_ADDRESS_GET, NULL, 8, dev->netdev.addr) <
+        0) {
+        DEBUG("[cc31xx] failed to get MAC-Address\n");
+    } else {
+        printf("[cc31xx] hardware address: ");
+        printMacAddr(dev->netdev.addr);
+    }
+
+    /* open RAW socket */
+    int16_t sock = _nwp_sock_create(dev, SL_AF_RF, SL_SOCK_RAW,  WIFI_CHANNEL);
+    if (sock < 0) {
+        DEBUG("[cc31xx] failed to open raw socket\n");
+    }
+    dev->sock_id = sock;
     return 0;
 }

@@ -26,12 +26,11 @@ extern "C" {
  *
  * The flag-space `0xff00` is available for device-specific flags.
  * The flag-space `0x00ff` was chosen for global flags to be in accordance to
- * the IEEE 802.15.4 MAC header flags.
+ * the IEEE 802.11 MAC header flags.
  * @{
  */
 
-#define NETDEV_IEEE802154_SEND_MASK         (0x0028)    /**< flags to take for send packets */
-#define NETDEV_IEEE802154_RAW               (0x0002)    /**< pass raw frame to upper layer */
+#define NETDEV_IEEE80211_SEND_MASK         (0x0028)    /**< flags to take for send packets */
 /**
  * @brief   use long source addres (set) or short source address (unset)
  */

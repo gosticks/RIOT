@@ -155,6 +155,12 @@ static cc31xx_nwp_queue_t _nwp_com = {
 };
 
 /**
+ * @brief used to notify blocking methods of a isr
+ * 
+ */
+static uint8_t _cc31xx_isr_state = 0;
+
+/**
  * @brief mask and unmask NWP data interrupt
  *
  */
@@ -178,6 +184,7 @@ uint8_t cc31xx_send_nwp_cmd(cc3100_t *dev, cc31xx_nwp_msg_t *msg,
                             cc31xx_nwp_rsp_t *res);
 void cc31xx_send_header(cc3100_t *dev, cc3100_nwp_header_t *header);
 int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf);
+uint16_t _nwp_setup(cc3100_t *dev);
 // int cc3100_read_from_nwp(void *buf, int len);
 // int cc31xx_send_to_nwp(cc3100_t *dev, const void *buf, int len);
 #ifdef __cplusplus

@@ -16,6 +16,7 @@
 #include "random.h"
 
 #include "net/netdev/ieee80211.h"
+#include "net/netopt.h"
 
 #define ENABLE_DEBUG (1)
 #include "debug.h"
@@ -30,6 +31,7 @@
  */
 static int _get_iid(netdev_ieee80211_t *dev, eui64_t *value, size_t max_len)
 {
+    DEBUG("%s()\n", __FUNCTION__);
     uint8_t addr[IEEE80211_ADDRESS_LEN];
     uint16_t addr_len = IEEE80211_ADDRESS_LEN;
 
@@ -53,11 +55,15 @@ void netdev_ieee80211_reset(netdev_ieee80211_t *dev)
 int netdev_ieee80211_get(netdev_ieee80211_t *dev, netopt_t opt, void *value,
                          size_t max_len)
 {
-    DEBUG("netdev_ieee80211_get\n");
+    DEBUG("%s(%s)\n", __FUNCTION__, netopt2str(opt));
 
     int res = -ENOTSUP;
 
     switch (opt) {
+    case NETOPT_ADDRESS:
+        assert(max_len >= IEEE80211_ADDRESS_LEN);
+        memcpy(value, dev->addr, sizeof(dev->addr));
+        return sizeof(dev->addr);
     case NETOPT_ADDR_LEN:
     case NETOPT_SRC_LEN:
         assert(max_len == sizeof(int16_t));
@@ -68,11 +74,6 @@ int netdev_ieee80211_get(netdev_ieee80211_t *dev, netopt_t opt, void *value,
         assert(max_len >= sizeof(int16_t));
         *((uint16_t *)value) = IEEE80211_FRAME_LEN_MAX - IEEE80211_MAX_HDR_LEN;
         return sizeof(uint16_t);
-    case NETOPT_ADDRESS:
-        assert(max_len >= IEEE80211_ADDRESS_LEN);
-        memcpy(value, dev->addr, IEEE80211_ADDRESS_LEN);
-        DEBUG("NETOPT_ADDRESS :)\n");
-        return IEEE80211_ADDRESS_LEN;
     case NETOPT_CHANNEL:
         assert(max_len == sizeof(uint16_t));
         *((uint16_t *)value) = (uint16_t)dev->chan;
@@ -81,13 +82,13 @@ int netdev_ieee80211_get(netdev_ieee80211_t *dev, netopt_t opt, void *value,
     /* set device type to unknown for now, when finished add
      * NETDEV_TYPE_IEEE80211 type */
     case NETOPT_DEVICE_TYPE:
-        DEBUG("NETOPT_DEVICE_TYPE(%d) set to NETDEV_TYPE_RAW\n", opt);
         *((uint16_t *)value) = NETDEV_TYPE_IEEE80211;
         return sizeof(uint16_t);
     case NETOPT_IPV6_IID:
         res = _get_iid(dev, value, max_len);
         break;
     default:
+        DEBUG("%s: %s not supported\n", __func__, netopt2str(opt));
         break;
     }
 
@@ -97,7 +98,7 @@ int netdev_ieee80211_get(netdev_ieee80211_t *dev, netopt_t opt, void *value,
 int netdev_ieee80211_set(netdev_ieee80211_t *dev, netopt_t opt,
                          const void *value, size_t len)
 {
-    DEBUG("netdev_ieee80211_set\n");
+    DEBUG("%s(%s)\n", __FUNCTION__, netopt2str(opt));
     int res = -ENOTSUP;
 
     switch (opt) {

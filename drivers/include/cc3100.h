@@ -33,6 +33,8 @@
 extern "C" {
 #endif
 
+#define WIFI_CHANNEL (7U)
+
 /**
  * @brief   Struct holding all parameters needed for device initialization
  */

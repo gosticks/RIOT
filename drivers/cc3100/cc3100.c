@@ -22,7 +22,6 @@
  */
 void cc3100_setup(cc3100_t *dev, const cc3100_params_t *params)
 {
-    DEBUG("PARAMS: %u, %u", params->spi, params->spi_clk);
     dev->netdev.netdev.driver = &netdev_driver_cc3100;
     dev->params               = *params;
     dev->options              = 0;
