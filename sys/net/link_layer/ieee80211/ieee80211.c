@@ -25,44 +25,169 @@
 const uint8_t ieee80211_addr_bcast[IEEE80211_ADDR_BCAST_LEN] =
         IEEE80211_ADDR_BCAST;
 
-size_t ieee80211_set_frame_hdr(uint8_t *buf, const uint8_t *src,const uint8_t *dst, const uint8_t *bssid, uint16_t fc, uint8_t seq)
+void _print_frame_type(uint16_t fc)
+{
+    uint8_t type = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 2);
+    DEBUG("TYPE %d \n", type);
+    uint8_t subtype = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 4);
+    char *name      = "";
+    if (type == IEEE80211_FCF_TYPE_CTRL) {
+        if (subtype == IEEE80211_FCF_CTRL_SUBTYPE_WL_ACK) {
+            name = "ACK";
+        }
+    } else if (type == IEEE80211_FCF_TYPE_DATA) {
+        name = "DATA";
+    } else if (type == IEEE80211_FCF_TYPE_MNG) {
+        switch (subtype) {
+        case IEEE80211_FCF_MNG_SUBTYPE_DEAUTH:
+            name = "DEAUTH";
+            break;
+        case IEEE80211_FCF_MNG_SUBTYPE_WL_BEACON:
+            name = "BEACON";
+            break;
+        case IEEE80211_FCF_MNG_SUBTYPE_AS_REQ:
+            name = "ASSOCIATION_REQ";
+            break;
+
+        default:
+            name = "UNKNOWN";
+            break;
+        }
+    }
+    DEBUG("Frame: %s type=%d subtype=%d \n", name, type, subtype);
+}
+
+size_t ieee80211_set_frame_hdr(uint8_t *buf, const uint8_t *src,
+                               const uint8_t *dst, const uint8_t *bssid,
+                               uint16_t fc, uint16_t seq)
 {
     DEBUG("ieee80211_set_frame_hdr\n");
-    int pos      = 3; /* 0-1: FC */
-    uint8_t type = (fc & IEEE80211_FCF_TYPE_MASK) >> 12;
-    uint8_t subtype = (fc & IEEE80211_FCF_SUBTYPE_MASK) >> 8;
-    
-    /* set frame control field to the first 16 bit */
+    int pos         = 4; /* 0-1: FC */
+    uint8_t type    = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 2);
+    uint8_t subtype = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 4);
+
+    /* set FC */
     (*(uint16_t *)&buf[1]) = fc;
+
+    /* Duration/ID */
 
     /* set duration field here */
     // TODO: set a value
+    // _print_frame_type(fc);
 
-    /* construct frame */
-
-
-    /* set destination */
-    buf[pos++] = dst[0];
-    buf[pos++] = dst[1];
-    buf[pos++] = dst[2];
-    buf[pos++] = dst[3];
-    buf[pos++] = dst[4];
-    buf[pos++] = dst[5];
-
-    /* if this is an ack complete */
-    if (type == IEEE80211_FCF_TYPE_CTRL && subtype == IEEE80211_FCF_CTRL_SUBTYPE_WL_ACK) {
+    /* if this is an ack we are done here */
+    if (type == IEEE80211_FCF_TYPE_CTRL &&
+        subtype == IEEE80211_FCF_CTRL_SUBTYPE_WL_ACK) {
+        DEBUG("ACK frame \n");
+        buf[pos++] = dst[0];
+        buf[pos++] = dst[1];
+        buf[pos++] = dst[2];
+        buf[pos++] = dst[3];
+        buf[pos++] = dst[4];
+        buf[pos++] = dst[5];
         return pos;
     }
 
-    /* for other frames set the src field */
-    buf[pos++] = src[0];
-    buf[pos++] = src[1];
-    buf[pos++] = src[2];
-    buf[pos++] = src[3];
-    buf[pos++] = src[4];
-    buf[pos++] = src[5];
+    /* Set header addresses based on the to and from DS value
+    +-----+-------+-----------+------------+-----------+-----------+
+    | To  | From  | Address 1 |  Address 2 | Address 3 | Address 4 |
+    |  DS |   DS  |           |            |           |           |
+    +-----+-------+-----------+------------+-----------+-----------+
+    |  0  |   0   |  RA = DA  |   TA = SA  |   BSSID   |     -     |
+    +-----+-------+-----------+------------+-----------+-----------+
+    |  0  |   1   |  RA = DA  | TA = BSSID |     SA    |     -     |
+    +-----+-------+-----------+------------+-----------+-----------+
+    |  1  |   0   |   BSSID   |   TA = SA  |     DA    |     -     |
+    +-----+-------+-----------+------------+-----------+-----------+
+    |  1  |   1   |     RA    |     TA     |     DA    |     SA    |
+    +-----+-------+-----------+------------+-----------+-----------+
+    */
 
-    
+    /* set Address 1 field */
+    /* FROM_DS = 0 && TO_DS = *  */
+    if (0 == (fc & IEEE80211_FCF_FRAME_TO_DS)) {
+        /* set destination */
+        buf[pos++] = dst[0];
+        buf[pos++] = dst[1];
+        buf[pos++] = dst[2];
+        buf[pos++] = dst[3];
+        buf[pos++] = dst[4];
+        buf[pos++] = dst[5];
+
+        /* TO_DS = 1 */
+        if (fc & IEEE80211_FCF_FRAME_FROM_DS) {
+            /* address 2 */
+            buf[pos++] = src[0];
+            buf[pos++] = src[1];
+            buf[pos++] = src[2];
+            buf[pos++] = src[3];
+            buf[pos++] = src[4];
+            buf[pos++] = src[5];
+            /* address 3 */
+            buf[pos++] = bssid[0];
+            buf[pos++] = bssid[1];
+            buf[pos++] = bssid[2];
+            buf[pos++] = bssid[3];
+            buf[pos++] = bssid[4];
+            buf[pos++] = bssid[5];
+        } else {
+            /* address 2 */
+            buf[pos++] = bssid[0];
+            buf[pos++] = bssid[1];
+            buf[pos++] = bssid[2];
+            buf[pos++] = bssid[3];
+            buf[pos++] = bssid[4];
+            buf[pos++] = bssid[5];
+
+            /* address 3 */
+            buf[pos++] = src[0];
+            buf[pos++] = src[1];
+            buf[pos++] = src[2];
+            buf[pos++] = src[3];
+            buf[pos++] = src[4];
+            buf[pos++] = src[5];
+        }
+
+        /* FROM_DS = 1 && TO_DS = 0  */
+    } else if ((fc & IEEE80211_FCF_FRAME_TO_DS) &&
+               ((fc & IEEE80211_FCF_FRAME_FROM_DS) == 0)) {
+        /* set bssid as address 1 */
+        buf[pos++] = bssid[0];
+        buf[pos++] = bssid[1];
+        buf[pos++] = bssid[2];
+        buf[pos++] = bssid[3];
+        buf[pos++] = bssid[4];
+        buf[pos++] = bssid[5];
+
+        /* address 2 */
+        buf[pos++] = src[0];
+        buf[pos++] = src[1];
+        buf[pos++] = src[2];
+        buf[pos++] = src[3];
+        buf[pos++] = src[4];
+        buf[pos++] = src[5];
+
+        /* FROM_DS = 1 && TO_DS = 1 */
+    } else {
+        /* only used for inter network communication by APs */
+        DEBUG("FROM_DS = 1 && TO_DS = 1 case not handled\n");
+    }
+
+    /* Sequence control */
+    (*(uint16_t *)&buf[pos + 1]) = seq;
+    pos += 2;
+
+    /* Address 3 */
+    if ((fc & IEEE80211_FCF_FRAME_TO_DS) &&
+        ((fc & IEEE80211_FCF_FRAME_FROM_DS) == 0)) {
+        buf[pos++] = dst[0];
+        buf[pos++] = dst[1];
+        buf[pos++] = dst[2];
+        buf[pos++] = dst[3];
+        buf[pos++] = dst[4];
+        buf[pos++] = dst[5];
+    }
+
     /* return actual header length */
     return pos;
 }
@@ -70,121 +195,79 @@ size_t ieee80211_set_frame_hdr(uint8_t *buf, const uint8_t *src,const uint8_t *d
 size_t ieee80211_get_frame_hdr_len(const uint8_t *mhr)
 {
     DEBUG("ieee80211_get_frame_hdr_len\n");
-    return 0;
-    /* TODO: include security header implications */
-    // uint8_t tmp;
-    // size_t len = 3; /* 2 byte FCF, 1 byte sequence number */
 
-    // /* figure out address sizes */
-    // tmp = (mhr[1] & IEEE802154_FCF_DST_ADDR_MASK);
-    // if (tmp == IEEE802154_FCF_DST_ADDR_SHORT) {
-    //     len += 4; /* 2 byte dst PAN + 2 byte dst short address */
-    // } else if (tmp == IEEE802154_FCF_DST_ADDR_LONG) {
-    //     len += 10; /* 2 byte dst PAN + 2 byte dst long address */
-    // } else if (tmp != IEEE802154_FCF_DST_ADDR_VOID) {
-    //     return 0;
-    // } else if (mhr[0] & IEEE802154_FCF_PAN_COMP) {
-    //     /* PAN compression, but no destination address => illegal state */
-    //     return 0;
-    // }
-    // tmp = (mhr[1] & IEEE802154_FCF_SRC_ADDR_MASK);
-    // if (tmp == IEEE802154_FCF_SRC_ADDR_VOID) {
-    //     return len;
-    // } else {
-    //     if (!(mhr[0] & IEEE802154_FCF_PAN_COMP)) {
-    //         len += 2;
-    //     }
-    //     if (tmp == IEEE802154_FCF_SRC_ADDR_SHORT) {
-    //         return len + 2;
-    //     } else if (tmp == IEEE802154_FCF_SRC_ADDR_LONG) {
-    //         return len + 8;
-    //     }
-    // }
-    // return 0;
+    int offset      = 3; /* FCF: 0-3 */
+    uint16_t fc     = ((uint16_t)mhr[0] << 8) | mhr[1];
+    uint8_t type    = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 2);
+    uint8_t subtype = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 4);
+    uint8_t tmp;
+
+    if (type == IEEE80211_FCF_TYPE_CTRL &&
+        subtype == IEEE80211_FCF_CTRL_SUBTYPE_WL_ACK) {
+        /* FC + ID + Address 1 */
+        return 10;
+    }
+
+    if ((fc & IEEE80211_FCF_FRAME_TO_DS) &&
+        (fc & IEEE80211_FCF_FRAME_FROM_DS)) {
+        /* FC + Duration/ID + addr 1 + addr 2 + addr 3 + SEQ + addr 3 */
+        /* TODO: 802.11n requires 4 more bytes */
+        return 32;
+    } else {
+        return 22;
+    }
 }
 
 int ieee80211_get_src(const uint8_t *mhr, uint8_t *src)
 {
-    
-    // int offset = 3; /* FCF: 0-1, Seq: 2 */
-    // uint8_t tmp;
+    int offset      = 4; /* FCF: 0-3 */
+    uint16_t fc     = ((uint16_t)mhr[0] << 8) | mhr[1];
+    uint8_t type    = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 2);
+    uint8_t subtype = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 4);
+    DEBUG("FC %x \n", fc);
 
-    // assert((src != NULL) && (src_pan != NULL));
-    // tmp = mhr[1] & IEEE802154_FCF_DST_ADDR_MASK;
-    // if (tmp == IEEE802154_FCF_DST_ADDR_SHORT) {
-    //     if (mhr[0] & IEEE802154_FCF_PAN_COMP) {
-    //         src_pan->u8[0] = mhr[offset];
-    //         src_pan->u8[1] = mhr[offset + 1];
-    //     }
-    //     offset += 4;
-    // } else if (tmp == IEEE802154_FCF_DST_ADDR_LONG) {
-    //     if (mhr[0] & IEEE802154_FCF_PAN_COMP) {
-    //         src_pan->u8[0] = mhr[offset];
-    //         src_pan->u8[1] = mhr[offset + 1];
-    //     }
-    //     offset += 10;
-    // } else if (tmp != IEEE802154_FCF_DST_ADDR_VOID) {
-    //     return -EINVAL;
-    // } else if (mhr[0] & IEEE802154_FCF_PAN_COMP) {
-    //     /* PAN compression, but no destination address => illegal state */
-    //     return -EINVAL;
-    // }
+    // _print_frame_type(fc);
 
-    // tmp = mhr[1] & IEEE802154_FCF_SRC_ADDR_MASK;
-    // if (tmp != IEEE802154_FCF_SRC_ADDR_VOID) {
-    //     if (!(mhr[0] & IEEE802154_FCF_PAN_COMP)) {
-    //         src_pan->u8[0] = mhr[offset++];
-    //         src_pan->u8[1] = mhr[offset++];
-    //     }
-    // }
-    // if (tmp == IEEE802154_FCF_SRC_ADDR_SHORT) {
-    //     /* read src PAN and address in little endian */
-    //     src[1] = mhr[offset++];
-    //     src[0] = mhr[offset++];
-    //     return 2;
-    // } else if (tmp == IEEE802154_FCF_SRC_ADDR_LONG) {
-    //     /* read src PAN and address in little endian */
-    //     for (int i = 7; i >= 0; i--) {
-    //         src[i] = mhr[offset++];
-    //     }
-    //     return 8;
-    // } else if (tmp != IEEE802154_FCF_SRC_ADDR_VOID) {
-    //     return -EINVAL;
-    // }
+    if ((fc & IEEE80211_FCF_FRAME_FROM_DS) == 0) {
+        offset = 10;
+    } else if ((fc & IEEE80211_FCF_FRAME_TO_DS) == 0) {
+        offset = 16;
+    } else {
+        DEBUG("FRAME TYPE NOT COVERED");
+        return 0;
+    }
 
-    return 0;
+    /* read address */
+    src[0] = mhr[offset++];
+    src[1] = mhr[offset++];
+    src[2] = mhr[offset++];
+    src[3] = mhr[offset++];
+    src[4] = mhr[offset++];
+    src[5] = mhr[offset++];
+
+    return IEEE80211_ADDRESS_LEN;
 }
 
 int ieee80211_get_dst(const uint8_t *mhr, uint8_t *dst)
 {
-    DEBUG("ieee80211_get_dst\n");
-    // int offset = 3; /* FCF: 0-1, Seq: 2 */
-    // uint8_t tmp;
+    int offset      = 4; /* FCF: 0-3 */
+    uint16_t fc     = ((uint16_t)mhr[0] << 8) | mhr[1];
+    uint8_t type    = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 2);
+    uint8_t subtype = ((uint8_t)(fc & IEEE80211_FCF_TYPE_MASK) << 4);
 
-    // assert((dst != NULL) && (dst_pan != NULL));
-    // tmp = mhr[1] & IEEE802154_FCF_DST_ADDR_MASK;
-    // if (tmp == IEEE802154_FCF_DST_ADDR_SHORT) {
-    //     /* read dst PAN and address in little endian */
-    //     dst_pan->u8[0] = mhr[offset++];
-    //     dst_pan->u8[1] = mhr[offset++];
-    //     dst[1]         = mhr[offset++];
-    //     dst[0]         = mhr[offset++];
-    //     return 2;
-    // } else if (tmp == IEEE802154_FCF_DST_ADDR_LONG) {
-    //     dst_pan->u8[0] = mhr[offset++];
-    //     dst_pan->u8[1] = mhr[offset++];
-    //     for (int i = 7; i >= 0; i--) {
-    //         dst[i] = mhr[offset++];
-    //     }
-    //     return 8;
-    // } else if (tmp != IEEE802154_FCF_DST_ADDR_VOID) {
-    //     return -EINVAL;
-    // } else if (mhr[0] & IEEE802154_FCF_PAN_COMP) {
-    //     /* PAN compression, but no destination address => illegal state */
-    //     return -EINVAL;
-    // }
+    if (fc & IEEE80211_FCF_FRAME_TO_DS) {
+        offset = 10;
+    }
 
-    return 0;
+    /* read address */
+    dst[0] = mhr[offset++];
+    dst[1] = mhr[offset++];
+    dst[2] = mhr[offset++];
+    dst[3] = mhr[offset++];
+    dst[4] = mhr[offset++];
+    dst[5] = mhr[offset++];
+
+    return IEEE80211_ADDRESS_LEN;
 }
 
 /** @} */

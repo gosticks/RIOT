@@ -42,6 +42,7 @@ static gnrc_pktsnip_t *_make_netif_hdr(uint8_t *mhr)
 
     dst_len = ieee80211_get_dst(mhr, dst);
     src_len = ieee80211_get_src(mhr, src);
+
     if ((dst_len < 0) || (src_len < 0)) {
         DEBUG("_make_netif_hdr: unable to get addresses\n");
         return NULL;
@@ -79,16 +80,23 @@ static inline bool _already_received(gnrc_netif_t *netif,
 
 static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
 {
-    DEBUG("RECV: \n");
-
     netdev_t *dev = netif->dev;
     netdev_ieee80211_rx_info_t rx_info;
     gnrc_pktsnip_t *pkt = NULL;
     int bytes_expected  = dev->driver->recv(dev, NULL, 0, NULL);
 
-    if (bytes_expected >= (int)IEEE802154_MIN_FRAME_LEN) {
-        int nread;
+    /* if package has no data return nothing */
+    if (bytes_expected == 0) {
+        return pkt;
+    }
 
+    if (bytes_expected >= (int)IEEE80211_MIN_FRAME_LEN) {
+        int nread;
+        gnrc_pktsnip_t *ieee80211_hdr, *netif_hdr;
+        gnrc_netif_hdr_t *hdr;
+#if ENABLE_DEBUG
+        char src_str[GNRC_NETIF_HDR_L2ADDR_PRINT_LEN];
+#endif
         pkt = gnrc_pktbuf_add(NULL, NULL, bytes_expected, GNRC_NETTYPE_UNDEF);
         if (pkt == NULL) {
             DEBUG("_recv_ieee80211: cannot allocate pktsnip.\n");
@@ -105,92 +113,44 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
         netif->stats.rx_count++;
         netif->stats.rx_bytes += nread;
 #endif
-
-        if (netif->flags & GNRC_NETIF_FLAGS_RAWMODE) {
-            /* Raw mode, skip packet processing, but provide rx_info via
-             * GNRC_NETTYPE_NETIF */
-            gnrc_pktsnip_t *netif_snip = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
-            if (netif_snip == NULL) {
-                DEBUG("_recv_ieee80211: no space left in packet buffer\n");
-                gnrc_pktbuf_release(pkt);
-                return NULL;
-            }
-            gnrc_netif_hdr_t *hdr = netif_snip->data;
-            hdr->lqi              = rx_info.lqi;
-            hdr->rssi             = rx_info.rssi;
-            gnrc_netif_hdr_set_netif(hdr, netif);
-            LL_APPEND(pkt, netif_snip);
-        } else {
-            /* Normal mode, try to parse the frame according to IEEE 802.15.4 */
-            gnrc_pktsnip_t *ieee80211_hdr, *netif_hdr;
-            gnrc_netif_hdr_t *hdr;
-#if ENABLE_DEBUG
-            char src_str[GNRC_NETIF_HDR_L2ADDR_PRINT_LEN];
-#endif
-            size_t mhr_len = ieee80211_get_frame_hdr_len(pkt->data);
-
-            /* nread was checked for <= 0 before so we can safely cast it to
-             * unsigned */
-            if ((mhr_len == 0) || ((size_t)nread < mhr_len)) {
-                DEBUG("_recv_ieee80211: illegally formatted frame received\n");
-                gnrc_pktbuf_release(pkt);
-                return NULL;
-            }
-            nread -= mhr_len;
-            /* mark IEEE 802.15.4 header */
-            ieee80211_hdr = gnrc_pktbuf_mark(pkt, mhr_len, GNRC_NETTYPE_UNDEF);
-            if (ieee80211_hdr == NULL) {
-                DEBUG("_recv_ieee80211: no space left in packet buffer\n");
-                gnrc_pktbuf_release(pkt);
-                return NULL;
-            }
-            netif_hdr = _make_netif_hdr(ieee80211_hdr->data);
-            if (netif_hdr == NULL) {
-                DEBUG("_recv_ieee80211: no space left in packet buffer\n");
-                gnrc_pktbuf_release(pkt);
-                return NULL;
-            }
-
-            hdr = netif_hdr->data;
-
-#ifdef MODULE_L2FILTER
-            if (!l2filter_pass(dev->filter, gnrc_netif_hdr_get_src_addr(hdr),
-                               hdr->src_l2addr_len)) {
-                gnrc_pktbuf_release(pkt);
-                gnrc_pktbuf_release(netif_hdr);
-                DEBUG("_recv_ieee80211: packet dropped by l2filter\n");
-                return NULL;
-            }
-#endif
-#ifdef MODULE_GNRC_NETIF_DEDUP
-            if (_already_received(netif, hdr, ieee80211_hdr->data)) {
-                gnrc_pktbuf_release(pkt);
-                gnrc_pktbuf_release(netif_hdr);
-                DEBUG("_recv_ieee80211: packet dropped by deduplication\n");
-                return NULL;
-            }
-            memcpy(netif->last_pkt.src, gnrc_netif_hdr_get_src_addr(hdr),
-                   hdr->src_l2addr_len);
-            netif->last_pkt.src_len = hdr->src_l2addr_len;
-            netif->last_pkt.seq     = ieee80211_get_seq(ieee80211_hdr->data);
-#endif /* MODULE_GNRC_NETIF_DEDUP */
-
-            hdr->lqi  = rx_info.lqi;
-            hdr->rssi = rx_info.rssi;
-            gnrc_netif_hdr_set_netif(hdr, netif);
-            dev->driver->get(dev, NETOPT_PROTO, &pkt->type, sizeof(pkt->type));
-#if ENABLE_DEBUG
-            DEBUG("_recv_ieee80211: received packet from %s of length %u\n",
-                  gnrc_netif_addr_to_str(gnrc_netif_hdr_get_src_addr(hdr),
-                                         hdr->src_l2addr_len, src_str),
-                  nread);
-#if defined(MODULE_OD)
-            od_hex_dump(pkt->data, nread, OD_WIDTH_DEFAULT);
-#endif
-#endif
-            gnrc_pktbuf_remove_snip(pkt, ieee80211_hdr);
-            LL_APPEND(pkt, netif_hdr);
+        size_t mhr_len = ieee80211_get_frame_hdr_len(pkt->data);
+        DEBUG("Header length %d \n", mhr_len);
+        /* nread was checked for <= 0 before so we can safely cast it to
+         * unsigned */
+        if ((mhr_len == 0) || ((size_t)nread < mhr_len)) {
+            DEBUG("_recv_ieee80211: illegally formatted frame received\n");
+            gnrc_pktbuf_release(pkt);
+            return NULL;
         }
+        nread -= mhr_len;
+
+        /* mark IEEE 802.11 header */
+        ieee80211_hdr = gnrc_pktbuf_mark(pkt, mhr_len, GNRC_NETTYPE_UNDEF);
+        if (ieee80211_hdr == NULL) {
+            DEBUG("_recv_ieee80211: no space left in packet buffer\n");
+            gnrc_pktbuf_release(pkt);
+            return NULL;
+        }
+        netif_hdr = _make_netif_hdr(ieee80211_hdr->data);
+        if (netif_hdr == NULL) {
+            DEBUG("_recv_ieee80211: no space left in packet buffer\n");
+            gnrc_pktbuf_release(pkt);
+            return NULL;
+        }
+
+        hdr = netif_hdr->data;
+
+#if ENABLE_DEBUG
+        DEBUG("_recv_ieee80211: received packet from %s of length %u\n",
+              gnrc_netif_addr_to_str(gnrc_netif_hdr_get_src_addr(hdr),
+                                     hdr->src_l2addr_len, src_str),
+              nread);
+#if defined(MODULE_OD)
+        od_hex_dump(pkt->data, nread, OD_WIDTH_DEFAULT);
+#endif
+#endif
+        gnrc_pktbuf_remove_snip(pkt, ieee80211_hdr);
+        LL_APPEND(pkt, netif_hdr);
 
         DEBUG("_recv_ieee80211: reallocating.\n");
         gnrc_pktbuf_realloc_data(pkt, nread);
@@ -204,7 +164,6 @@ static gnrc_pktsnip_t *_recv(gnrc_netif_t *netif)
 
 static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
 {
-    DEBUG("craft a packet sir: \n");
     netdev_t *dev             = netif->dev;
     netdev_ieee80211_t *state = (netdev_ieee80211_t *)netif->dev;
     gnrc_netif_hdr_t *netif_hdr;
@@ -225,8 +184,8 @@ static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
         return -EINVAL;
     }
     if (pkt->type != GNRC_NETTYPE_NETIF) {
-            DEBUG("_send_ieee80211: first header is not generic netif header\n"); 
-            return -EBADMSG;
+        DEBUG("_send_ieee80211: first header is not generic netif header\n");
+        return -EBADMSG;
     }
     netif_hdr = pkt->data;
     if (netif_hdr->flags & GNRC_NETIF_HDR_FLAGS_MORE_DATA) {
@@ -237,15 +196,14 @@ static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
     if (netif_hdr->flags & /* If any of these flags is set assume
     broadcast */
         (GNRC_NETIF_HDR_FLAGS_BROADCAST | GNRC_NETIF_HDR_FLAGS_MULTICAST)) {
-        dst     = ieee80211_addr_bcast;
+        dst = ieee80211_addr_bcast;
     } else {
-        dst     = gnrc_netif_hdr_get_dst_addr(netif_hdr);
+        dst = gnrc_netif_hdr_get_dst_addr(netif_hdr);
     }
     src = gnrc_netif_hdr_get_src_addr(netif_hdr);
-   
+
     /* fill MAC header, seq should be set by device */
-    if ((res = ieee80211_set_frame_hdr(
-        mhr, src, dst, NULL, flags,
+    if ((res = ieee80211_set_frame_hdr(mhr, src, dst, NULL, flags,
                                        state->seq++)) == 0) {
         DEBUG("_send_ieee80211: Error preperaring frame\n");
         return -EINVAL;
@@ -256,14 +214,14 @@ static int _send(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt)
                         .iol_base = mhr,
                         .iol_len  = (size_t)res };
 
-    #ifdef MODULE_NETSTATS_L2
-        if (netif_hdr->flags &
-            (GNRC_NETIF_HDR_FLAGS_BROADCAST |
-            GNRC_NETIF_HDR_FLAGS_MULTICAST)) { netif->stats.tx_mcast_count++;
-        } else {
-            netif->stats.tx_unicast_count++;
-        }
-    #endif
+#ifdef MODULE_NETSTATS_L2
+    if (netif_hdr->flags &
+        (GNRC_NETIF_HDR_FLAGS_BROADCAST | GNRC_NETIF_HDR_FLAGS_MULTICAST)) {
+        netif->stats.tx_mcast_count++;
+    } else {
+        netif->stats.tx_unicast_count++;
+    }
+#endif
 
     res = dev->driver->send(dev, &iolist);
 
