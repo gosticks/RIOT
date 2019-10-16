@@ -18,8 +18,8 @@
  * @{
  */
 
-#include "cpu.h"
 #include "board.h"
+#include "cpu.h"
 #include "vectors_cortexm.h"
 #include <stdint.h>
 
@@ -84,17 +84,17 @@ const isr_t vector_cpu[CPU_IRQ_NUMOF] = {
     [16] = isr_adc0_seq2,    /* 32 ADC 0 Sequence 2 */
     [17] = isr_adc0_seq3,    /* 33 ADC 0 Sequence 3 */
     [18] = isr_wdt,          /* 34 Watchdog timer */
-    [19] = isr_timer0_ch_a,      /* 35 Timer 0 subtimer A */
-    [20] = isr_timer0_ch_b,      /* 36 Timer 0 subtimer B */
-    [21] = isr_timer1_ch_a,      /* 37 Timer 1 subtimer A */
-    [22] = isr_timer1_ch_b,      /* 38 Timer 1 subtimer B */
-    [23] = isr_timer2_ch_a,      /* 39 Timer 2 subtimer A */
-    [24] = isr_timer2_ch_b,      /* 40 Timer 2 subtimer B */
+    [19] = isr_timer0_ch_a,  /* 35 Timer 0 subtimer A */
+    [20] = isr_timer0_ch_b,  /* 36 Timer 0 subtimer B */
+    [21] = isr_timer1_ch_a,  /* 37 Timer 1 subtimer A */
+    [22] = isr_timer1_ch_b,  /* 38 Timer 1 subtimer B */
+    [23] = isr_timer2_ch_a,  /* 39 Timer 2 subtimer A */
+    [24] = isr_timer2_ch_b,  /* 40 Timer 2 subtimer B */
                              /* 41 - 44 Reserved */
     [29] = isr_flashctl,     /* 45 Flash */
                              /* 46 - 50 Reserved */
-    [35] = isr_timer3_ch_a,      /* 51 Timer 3 subtimer B */
-    [36] = isr_timer3_ch_b,      /* 52 Timer 3 subtimer B */
+    [35] = isr_timer3_ch_a,  /* 51 Timer 3 subtimer B */
+    [36] = isr_timer3_ch_b,  /* 52 Timer 3 subtimer B */
                              /* 53 - 61 Reserved */
     [46] = isr_udma_sw,      /* 62 uDMA Software Transfer */
     [47] = isr_udma_error,   /* 63 uDMA Error */

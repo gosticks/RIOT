@@ -29,7 +29,7 @@ extern "C" {
  * @brief   Length of the CPU_ID in octets
  */
 #ifndef CPUID_LEN
-#define CPUID_LEN           (4U)
+#define CPUID_LEN (5U)
 #endif
 
 /**

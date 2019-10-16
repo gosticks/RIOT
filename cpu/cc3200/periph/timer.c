@@ -94,6 +94,69 @@ static inline cc3200_timer_t *timer(tim_t num)
 }
 
 /**
+ * @brief timer interrupt handler
+ *
+ * @param[in] dev GPT instance number
+ */
+static void timer_irq_handler(tim_t tim, int channel)
+{
+    // DEBUG("%s(%u,%d, %u)\n", __FUNCTION__, tim, channel, timer_read(tim));
+    assert(tim < TIMER_NUMOF);
+    assert(channel < (int)timer_config[tim].chn);
+
+    uint32_t mis;
+    /* Latch the active interrupt flags */
+    mis = timer(tim)->masked_intr & chn_isr_cfg[channel].mask;
+    /* Clear the latched interrupt flags */
+    timer(tim)->intr_clear = mis;
+
+    // DEBUG("EXECUTE CALLBACK\n");
+    if (mis & chn_isr_cfg[channel].flag) {
+        // DEBUG("[OK]EXECUTE CALLBACK\n");
+        /* Disable further match interrupts for this timer/channel */
+        timer(tim)->masked_intr &= ~chn_isr_cfg[channel].flag;
+        /* Invoke the callback function */
+        isr_ctx[tim].cb(isr_ctx[tim].arg, channel);
+        // DEBUG("[DONE]EXECUTE CALLBACK\n");
+    }
+
+    cortexm_isr_end();
+}
+
+void isr_timer0_ch_a(void)
+{
+    timer_irq_handler(0, 0);
+};
+void isr_timer0_ch_b(void)
+{
+    timer_irq_handler(0, 1);
+};
+void isr_timer1_ch_a(void)
+{
+    timer_irq_handler(1, 0);
+};
+void isr_timer1_ch_b(void)
+{
+    timer_irq_handler(1, 1);
+};
+void isr_timer2_ch_a(void)
+{
+    timer_irq_handler(2, 0);
+};
+void isr_timer2_ch_b(void)
+{
+    timer_irq_handler(2, 1);
+};
+void isr_timer3_ch_a(void)
+{
+    timer_irq_handler(3, 0);
+};
+void isr_timer3_ch_b(void)
+{
+    timer_irq_handler(3, 1);
+};
+
+/**
  * @brief returns the timer peripheral register used to enable or disable
  * hardware peripheral.
  *
@@ -166,19 +229,31 @@ int timer_init(tim_t tim, unsigned long freq, timer_cb_t cb, void *arg)
         return -1;
     }
 
-    t->conf = timer_config[tim].cfg;
+    t->conf = timer_config[tim].cfg; // | TIMER_CFG_A_PERIODIC_UP >> 24;
     t->ctrl &= TAEN;
-    t->timer_a_mode = chan_mode;
+    t->timer_a_mode = chan_mode & 255;
 
     if (timer_config[tim].chn > 1) {
-        t->timer_b_mode    = chan_mode;
+        t->timer_b_mode    = chan_mode & 255;
         t->prescale_b      = prescaler;
         t->interval_load_b = LOAD_VALUE;
         /* Enable the timer: */
         t->ctrl &= TBEN;
     }
 
-    _irq_enable(tim);
+    ROM_TimerConfigure((uint32_t)timer(tim), 0x04000000 | TIMER_CFG_A_PERIODIC);
+    ROM_TimerPrescaleSet((uint32_t)timer(tim), TIMER_A, 79);
+    ROM_TimerIntRegister((uint32_t)timer(tim), TIMER_A, isr_timer0_ch_a);
+    // ROM_TimerControlStall((uint32_t)timer(tim), TIMER_A, true);
+
+    ROM_IntPriorityGroupingSet(3);
+    ROM_IntPrioritySet(INT_TIMERA0A, 0xFF);
+
+    // ROM_TimerLoadSet((uint32_t)timer(tim), TIMER_A, 5000);
+    ROM_TimerIntEnable((uint32_t)timer(tim), TIMER_CAPA_MATCH);
+
+    ROM_TimerEnable((uint32_t)timer(tim), TIMER_A);
+    // _irq_enable(tim);
     return 0;
 }
 
@@ -186,16 +261,16 @@ int timer_set_absolute(tim_t tim, int channel, unsigned int value)
 {
     DEBUG("timer_set_absolute(%u, %u, %u)\n", tim, channel, value);
 
-    if (tim >= TIMER_NUMOF || channel >= (int)timer_config[tim].chn) {
-        return -1;
-    }
+    // if (tim >= TIMER_NUMOF || channel >= (int)timer_config[tim].chn) {
+    //     return -1;
+    // }
     /* clear any pending match interrupts */
     timer(tim)->intr_clear = chn_isr_cfg[channel].flag;
     if (channel == 0) {
-        timer(tim)->match_a =
-                (timer_config[tim].cfg == TIMER_CFG_32_BIT_TIMER) ?
-                        value :
-                        (LOAD_VALUE - value);
+        ROM_TimerMatchSet((uint32_t)timer(tim), TIMER_A, (uint32_t)timer(tim));
+        // printf("timer_set_absolute(%u, %u)\n", (uint16_t)timer(tim)->val_a,
+        //        value);
+
     } else {
         timer(tim)->match_b =
                 (timer_config[tim].cfg == TIMER_CFG_32_BIT_TIMER) ?
@@ -224,12 +299,15 @@ unsigned int timer_read(tim_t tim)
     if (tim >= TIMER_NUMOF) {
         return 0;
     }
+    // while (true) {
+    //     DEBUG("a= %d  | b= %ld \n", (uint16_t)timer(tim)->val_a,
+    //           (uint32_t)timer(tim)->val_b);
+    // }
 
     if (timer_config[tim].cfg == TIMER_CFG_32_BIT_TIMER) {
         return timer(tim)->val_a;
     } else {
-        unsigned int val = LOAD_VALUE - (timer(tim)->val_a & 0xFFFF);
-        return val;
+        return (uint16_t)(timer(tim)->val_a);
     }
 }
 
@@ -254,66 +332,3 @@ void timer_stop(tim_t tim)
         timer(tim)->ctrl = 0;
     }
 }
-
-/**
- * @brief timer interrupt handler
- *
- * @param[in] dev GPT instance number
- */
-static void timer_irq_handler(tim_t tim, int channel)
-{
-    DEBUG("%s(%u,%d, %u)\n", __FUNCTION__, tim, channel, timer_read(tim));
-    assert(tim < TIMER_NUMOF);
-    assert(channel < (int)timer_config[tim].chn);
-
-    uint32_t mis;
-    /* Latch the active interrupt flags */
-    mis = timer(tim)->masked_intr & chn_isr_cfg[channel].mask;
-    /* Clear the latched interrupt flags */
-    timer(tim)->intr_clear = mis;
-
-    DEBUG("EXECUTE CALLBACK\n");
-    if (mis & chn_isr_cfg[channel].flag) {
-        DEBUG("[OK]EXECUTE CALLBACK\n");
-        /* Disable further match interrupts for this timer/channel */
-        timer(tim)->masked_intr &= ~chn_isr_cfg[channel].flag;
-        /* Invoke the callback function */
-        isr_ctx[tim].cb(isr_ctx[tim].arg, channel);
-        DEBUG("[DONE]EXECUTE CALLBACK\n");
-    }
-
-    cortexm_isr_end();
-}
-
-void isr_timer0_ch_a(void)
-{
-    timer_irq_handler(0, 0);
-};
-void isr_timer0_ch_b(void)
-{
-    timer_irq_handler(0, 1);
-};
-void isr_timer1_ch_a(void)
-{
-    timer_irq_handler(1, 0);
-};
-void isr_timer1_ch_b(void)
-{
-    timer_irq_handler(1, 1);
-};
-void isr_timer2_ch_a(void)
-{
-    timer_irq_handler(2, 0);
-};
-void isr_timer2_ch_b(void)
-{
-    timer_irq_handler(2, 1);
-};
-void isr_timer3_ch_a(void)
-{
-    timer_irq_handler(3, 0);
-};
-void isr_timer3_ch_b(void)
-{
-    timer_irq_handler(3, 1);
-};

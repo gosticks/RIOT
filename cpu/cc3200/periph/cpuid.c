@@ -23,7 +23,23 @@
 #include "cpu.h"
 #include "periph/cpuid.h"
 
+typedef struct {
+    unsigned char rev : 4;
+    unsigned char part_no_2 : 8;
+    unsigned char part_no_1 : 4;
+    unsigned char con : 4;
+    unsigned char var : 4;
+    unsigned char imp : 8;
+} cpuid_t;
+
 void cpuid_get(void *id)
 {
-    memcpy(id, CPUID_ADDR, CPUID_LEN);
+    cpuid_t *cpuid     = ((cpuid_t *)CPUID_ADDR);
+    unsigned char *_id = id;
+    _id[0]             = cpuid->rev;
+    _id[1]             = cpuid->part_no_1;
+    _id[2]             = cpuid->part_no_2;
+    _id[3]             = cpuid->con;
+    _id[4]             = cpuid->var;
+    _id[5]             = cpuid->imp;
 }

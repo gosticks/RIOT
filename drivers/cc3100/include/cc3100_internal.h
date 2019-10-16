@@ -56,6 +56,9 @@ extern "C" {
 
 #define REQUEST_QUEUE_SIZE (2)
 
+// TODO: finetune this shared buffer and maybe move it to dev
+static uint8_t sharedBuffer[512];
+
 /* RX Irqn handler type */
 typedef void (*cc3100_rx_irqn_handler)(void);
 #define cc3100_rx_irqn_handler cc3100_rx_irqn_handler
@@ -68,32 +71,39 @@ typedef struct cc3100_drv_con_info_t {
     bool connected;
 } cc3100_drv_con_info_t;
 
+typedef struct {
+    uint8_t rate;
+    uint8_t channel;
+    int8_t rssi;
+    uint8_t padding;
+    uint32_t timestamp;
+} cc31xx_ti_frame_header_t;
+
 /**
- * @brief DriverMessage is used to send a message to the NWP. Below is a simple
- * diagram of a message to the NWP. Each block is transmitted a separate
+ * @brief DriverMessage is used to send a message to the NWP. Below is a
+ * simple diagram of a message to the NWP. Each block is transmitted a
+ * separate
  *  +---------------------------+
  *  |                           |
  *  |        Msg Header         |   4 byte (OPCODE + length)
  *  |                           |
  *  +---------------------------+
  *  |                           |
- *  |      Cmd Description      |   n * 4 byte (length set by cmdDescLen)
- *  |        (optional)         |
- *  |                           |
+ *  |      Cmd Description      |   n * 4 byte (length set by
+ * cmdDescLen) |        (optional)         | | |
  *  +---------------------------+
  *  |                           |
- *  |      Payload Header       |   n * 4 byte (length set by payloadLen)
- *  |        (optional)         |
- *  |                           |
+ *  |      Payload Header       |   n * 4 byte (length set by
+ * payloadLen) |        (optional)         | | |
  *  +---------------------------+
  *  |                           |
- *  |         Payload           |   n * 4 byte (length set by payloadLen)
- *  |        (optional)         |
- *  |                           |
+ *  |         Payload           |   n * 4 byte (length set by
+ * payloadLen) |        (optional)         | | |
  *  +---------------------------+
  */
 typedef struct {
     uint16_t opcode; /**< specifies opcode & total command size  */
+    uint16_t resp_opcode;
     bool receiveFlagsViaRxPayload;
 
     void *desc_buf;    /**< command description */
@@ -156,9 +166,13 @@ static cc31xx_nwp_queue_t _nwp_com = {
 
 /**
  * @brief used to notify blocking methods of a isr
- * 
+ *
  */
 static uint8_t _cc31xx_isr_state = 0;
+
+/* static header buffer */
+static cc3100_nwp_resp_header_t _cmd_header = {};
+static cc31xx_ti_frame_header_t _ti_header  = {};
 
 /**
  * @brief mask and unmask NWP data interrupt
@@ -173,7 +187,7 @@ static inline void unmask_nwp_rx_irqn(void)
     (*(unsigned long *)N2A_INT_MASK_CLR) = 0x1;
 }
 void cc3100_cmd_handler(cc3100_t *dev, cc3100_nwp_resp_header_t *header);
-
+int cc3100_read_from_nwp(cc3100_t *dev, void *buf, int len);
 void cc3100_nwp_graceful_power_off(void);
 void cc3100_nwp_power_on(void);
 void cc3100_nwp_power_off(void);
@@ -186,7 +200,7 @@ void cc31xx_send_header(cc3100_t *dev, cc3100_nwp_header_t *header);
 int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf);
 uint16_t _nwp_setup(cc3100_t *dev);
 // int cc3100_read_from_nwp(void *buf, int len);
-// int cc31xx_send_to_nwp(cc3100_t *dev, const void *buf, int len);
+int cc31xx_send_to_nwp(cc3100_t *dev, const void *buf, int len);
 #ifdef __cplusplus
 }
 #endif

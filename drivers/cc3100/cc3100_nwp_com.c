@@ -539,7 +539,8 @@ int16_t _nwp_sock_create(cc3100_t *dev, int16_t domain, int16_t type,
     DEBUG("[cc31xx] socket open ID=%d Status=%d \n", m.res.sd,
           m.res.statusOrLen);
     if (m.res.statusOrLen < 0) {
-        DEBUG("[cc31xx] failed to open socket status(%d) \n", m.res.statusOrLen);
+        DEBUG("[cc31xx] failed to open socket status(%d) \n",
+              m.res.statusOrLen);
 #if ENABLE_DEBUG
         switch (m.res.statusOrLen) {
         case SL_CONNECTION_PENDING:
@@ -553,7 +554,7 @@ int16_t _nwp_sock_create(cc3100_t *dev, int16_t domain, int16_t type,
 }
 
 /**
- * @brief
+ * @brief receive a frame from NWP blockingly
  *
  * @param dev
  * @param sock
@@ -574,10 +575,10 @@ int16_t _nwp_read_raw_frame(cc3100_t *dev, int16_t sock, void *buf,
     m.req.FamilyAndFlags = options & 0x0F;
 
     cc31xx_nwp_msg_t msg = {
-        .opcode = SL_OPCODE_SOCKET_RECV,
-        // .RespOpcode = SL_OPCODE_SOCKET_RECVASYNCRESPONSE,
-        .desc_buf = &m,
-        .desc_len = sizeof(_sendRecvCommand_t),
+        .opcode      = SL_OPCODE_SOCKET_RECV,
+        .resp_opcode = SL_OPCODE_SOCKET_RECVASYNCRESPONSE,
+        .desc_buf    = &m,
+        .desc_len    = sizeof(_sendRecvCommand_t),
     };
 
     cc31xx_nwp_rsp_t res = {
@@ -592,6 +593,38 @@ int16_t _nwp_read_raw_frame(cc3100_t *dev, int16_t sock, void *buf,
     }
 
     return m.res.statusOrLen;
+}
+
+/**
+ * @brief request the NWP to read the next Wi-Fi frame
+ *
+ * @param dev
+ * @param sock
+ * @param options
+ * @return int16_t
+ */
+int16_t _nwp_req_rcv_frame(cc3100_t *dev, int16_t sock, int16_t options)
+{
+    /* create data object */
+    cc31xx_cmd_raw_sock_t m = { 0 };
+
+    /* set socket informations */
+    m.req.sd             = sock;
+    m.req.StatusOrLen    = IEEE80211_FRAME_LEN_MAX + sizeof(_ti_header);
+    m.req.FamilyAndFlags = options & 0x0F;
+
+    cc31xx_nwp_msg_t msg = {
+        .opcode = SL_OPCODE_SOCKET_RECV,
+        // .RespOpcode = SL_OPCODE_SOCKET_RECVASYNCRESPONSE,
+        .desc_buf = &m,
+        .desc_len = sizeof(_sendRecvCommand_t),
+    };
+
+    if (cc31xx_send_nwp_cmd(dev, &msg, NULL) != 0) {
+        DEBUG("ERR: failed to send NWP cmd (0x%x) \n", msg.opcode);
+    }
+
+    return 0;
 }
 
 int16_t _nwp_send_frame_to(cc3100_t *dev, int16_t sock, void *buf, uint16_t len,
@@ -635,7 +668,6 @@ int16_t _nwp_send_frame_to(cc3100_t *dev, int16_t sock, void *buf, uint16_t len,
 int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, size_t len,
                             int16_t options)
 {
-    DEBUG("%s() packet_len = %d \n", __FUNCTION__, len);
     // TODO: add sync for multiple sockets for now only one socket is
     // supported check mutex
     _sendRecvCommand_t data = { 0 };
@@ -663,7 +695,10 @@ int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, size_t len,
         data.sd = (uint8_t)sock;
         data.FamilyAndFlags |= options & 0x0F;
 
-        msg.payload_buf = (uint8_t *)(buf + bufOffset);
+        /* if buf is null the transmission is handled externally */
+        if (buf != NULL) {
+            msg.payload_buf = (uint8_t *)(buf + bufOffset);
+        }
 
         // compute package lan either max package len or remainder
         msg.payload_len =
@@ -672,10 +707,6 @@ int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, size_t len,
 
         // increment buffer offset
         bufOffset += packetLen;
-
-        DEBUG("Sending package len=%d chunk %d of %d\n", msg.payload_len,
-         i,
-                chunksCount);
 
         // send socket data
         if (cc31xx_send_nwp_cmd(dev, &msg, NULL) != 0) {
@@ -689,11 +720,47 @@ int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, size_t len,
     return 0;
 }
 
-int16_t _nwp_set_wifi_filter(cc3100_t *dev, uint8_t filterOptions,
-                             uint8_t *inBuf, uint16_t bufLen)
+int16_t _nwp_send_raw_fragments(cc3100_t *dev, int16_t sock, size_t len,
+                                int16_t options)
+{
+    // TODO: add sync for multiple sockets for now only one socket is
+    // supported check mutex
+    _sendRecvCommand_t data = { 0 };
+
+    /* compute packet len based on socket type */
+    uint32_t optionsCopy = options;
+
+    data.sd = (uint8_t)sock;
+    data.FamilyAndFlags |= options & 0x0F;
+    data.StatusOrLen = len;
+
+    // fast ceil without math library
+    // printf("Split into %d chunks \n", chunksCount);
+    // create request response objects
+    cc31xx_nwp_msg_t msg = {
+        .opcode = SL_OPCODE_SOCKET_SEND,
+        // // .RespOpcode = SL_OPCODE_DEVICE_DEVICEASYNCDUMMY,
+        .desc_buf        = &data,
+        .desc_len        = sizeof(_sendRecvCommand_t),
+        .payload_hdr_buf = &optionsCopy,
+        .payload_hdr_len = sizeof(uint32_t),
+    };
+
+    msg.payload_len = len;
+
+    if (cc31xx_send_nwp_cmd(dev, &msg, NULL) != 0) {
+        DEBUG("ERR: failed to send SOCK data");
+        return -1;
+    }
+
+    return 0;
+}
+
+int16_t _nwp_set_wifi_filter(cc3100_t *dev, uint8_t filter_opt, uint8_t *inBuf,
+                             uint16_t bufLen)
 {
     cc31xx_cmd_set_rx_filter_t m = { 0 };
-    m.req.RxFilterOperation      = filterOptions;
+    m.req.RxFilterOperation      = filter_opt;
     m.req.InputBufferLength      = bufLen;
     // create msg struct
     cc31xx_nwp_msg_t msg = {
@@ -715,6 +782,9 @@ int16_t _nwp_set_wifi_filter(cc3100_t *dev, uint8_t filterOptions,
         printf("[cc31xx] failed to set Rx Filter \n");
         return -1;
     }
+
+    DEBUG("[cc31xx] filter set retuned %d \n", m.res.Status);
+
     return m.res.Status;
 }
 
@@ -757,4 +827,34 @@ int16_t _nwp_set_sock_opt(cc3100_t *dev, uint16_t sock, uint16_t level,
         return -1;
     }
     return m.res.statusOrLen;
+}
+
+int16_t _nwp_set_mac_filter(cc3100_t *dev, uint8_t *addr)
+{
+    _WlanRxFilterAddCommand_t cmd;
+    /* create header filter */
+    cmd.Trigger.ParentFilterID = 0;
+    cmd.Trigger.Trigger        = NO_TRIGGER;
+    cmd.Trigger.TriggerArgConnectionState.IntRepresentation =
+            RX_FILTER_CONNECTION_STATE_STA_NOT_CONNECTED;
+    cmd.Trigger.TriggerArgRoleStatus.IntRepresentation =
+            RX_FILTER_ROLE_PROMISCUOUS;
+
+    cmd.RuleType                        = HEADER;
+    cmd.Rule.HeaderType.RuleHeaderfield = MAC_DST_ADDRESS_FIELD;
+    /* set mac address */
+    memcpy(cmd.Rule.HeaderType.RuleHeaderArgsAndMask.RuleHeaderArgs
+                   .RxFilterDB6BytesRuleArgs[0],
+           addr, IEEE80211_ADDRESS_LEN);
+    memset(cmd.Rule.HeaderType.RuleHeaderArgsAndMask.RuleHeaderArgsMask, 0xFF,
+           IEEE80211_ADDRESS_LEN);
+
+    /* set compare function */
+    cmd.Rule.HeaderType.RuleCompareFunc = COMPARE_FUNC_NOT_EQUAL_TO;
+
+    cmd.Action.ActionType.IntRepresentation = RX_FILTER_ACTION_DROP;
+    cmd.FilterFlags.IntRepresentation       = RX_FILTER_BINARY;
+
+    return _nwp_set_wifi_filter(dev, RX_FILTER_BINARY, (uint8_t *)&cmd,
+                                sizeof(cmd));
 }

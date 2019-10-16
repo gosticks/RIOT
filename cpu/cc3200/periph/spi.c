@@ -211,7 +211,7 @@ void spi_release(spi_t bus)
     }
 
     /* disable spi */
-    spi(bus)->ch0_ctrl &= ~MCSPI_CH0CTRL_EN;
+    // spi(bus)->ch0_ctrl &= ~MCSPI_CH0CTRL_EN;
 
     mutex_unlock(&locks[bus]);
 }

@@ -21,15 +21,19 @@ int16_t _nwp_sock_create(cc3100_t *dev, int16_t domain, int16_t type,
 int16_t _nwp_set_sock_opt(cc3100_t *dev, uint16_t sock, uint16_t level,
                           uint16_t optionName, void *optionVal,
                           uint8_t optionLen);
-int16_t _nwp_set_wifi_filter(cc3100_t *dev, uint8_t filterOptions,
-                             uint8_t *inBuf, uint16_t bufLen);
+int16_t _nwp_set_wifi_filter(cc3100_t *dev, uint8_t filter_opt, uint8_t *inBuf,
+                             uint16_t bufLen);
 int16_t _nwp_send_raw_frame(cc3100_t *dev, int16_t sock, void *buf, int16_t len,
                             int16_t options);
+int16_t _nwp_send_raw_fragments(cc3100_t *dev, int16_t sock, size_t len,
+                                int16_t options);
 int16_t _nwp_send_frame_to(cc3100_t *dev, int16_t sock, void *buf, uint16_t len,
                            int16_t flags, SlSockAddr_t *to, uint16_t toLen);
 int16_t _nwp_read_raw_frame(cc3100_t *dev, int16_t sock, void *buf,
                             int16_t bufLen, int16_t options);
+int16_t _nwp_req_rcv_frame(cc3100_t *dev, int16_t sock, int16_t options);
 int16_t _nwp_set_wifi_policy(cc3100_t *dev, uint8_t type, uint8_t policy);
 int16_t _nwp_del_profile(cc3100_t *dev, int16_t index);
 int16_t _nwp_get_profile(cc3100_t *dev, int16_t index);
+int16_t _nwp_set_mac_filter(cc3100_t *dev, uint8_t *addr);
 int16_t _nwp_profile_add(cc3100_t *dev, WifiProfileConfig *conf);

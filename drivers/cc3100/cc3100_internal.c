@@ -10,9 +10,9 @@
 
 #include "cc3100.h"
 #include "include/cc3100_internal.h"
+#include "include/cc3100_netdev.h"
 #include "include/cc3100_nwp_com.h"
 #include "include/cc3100_protocol.h"
-#include "include/cc3100_netdev.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -61,18 +61,11 @@ void printMacAddr(unsigned char *addr)
 #define WAKENWP_WAKEREQ \
     (APPS_RCM_APPS_TO_NWP_WAKE_REQUEST_APPS_TO_NWP_WAKEUP_REQUEST)
 
-// TODO: finetune this shared buffer and maybe move it to dev
-static uint8_t sharedBuffer[512];
-
-/* static header buffer */
-static cc3100_nwp_resp_header_t _cmd_header = {};
-
 /**
  * @brief Transmission sequence number used for NWP <-> CPU sync
  *
  */
 static uint32_t TxSeqNum = 0;
-
 
 const cc3100_nwp_sync_pattern_t CPU_TO_NWP_SYNC_PATTERN =
         CPU_TO_NET_CHIP_SYNC_PATTERN;
@@ -87,14 +80,12 @@ void sliceFirstInBuffer(uint8_t *buf, int len);
 void cc3100_add_to_drv_queue(volatile cc31xx_nwp_req_t *req);
 uint8_t cc3100_remove_from_drv_queue(volatile cc31xx_nwp_req_t *req);
 
-
 /**
  * @brief cc3100_nwp_rx_handler is the default RX handlers for the NWP
  *
  */
 void cc3100_nwp_rx_handler(void)
 {
-
     DEBUG("%s()\n", __FUNCTION__);
 
     /* reset header buffer values */
@@ -257,7 +248,7 @@ int cc3100_read_from_nwp(cc3100_t *dev, void *buf, int len)
 {
     DEBUG("%s()\n", __FUNCTION__);
     // spi_transfer_bytes(dev->params.spi, SPI_CS_UNDEF, false, NULL, buf, len);
-    spi_transfer_bytes(1, SPI_CS_UNDEF, false, NULL, buf, len);
+    spi_transfer_bytes(1, SPI_CS_UNDEF, false, NULL, buf, ((len) + 3) & (~3));
     return len;
 }
 
@@ -272,7 +263,7 @@ int cc31xx_send_to_nwp(cc3100_t *dev, const void *buf, int len)
 {
     DEBUG("%s()\n", __FUNCTION__);
     // spi_transfer_bytes(dev->params.spi, SPI_CS_UNDEF, false, buf, NULL, len);
-    spi_transfer_bytes(1, SPI_CS_UNDEF, false, buf, NULL, len);
+    spi_transfer_bytes(1, SPI_CS_UNDEF, false, buf, NULL, ((len) + 3) & (~3));
     return len;
 }
 
@@ -328,10 +319,11 @@ void cc3100_cmd_handler(cc3100_t *dev, cc3100_nwp_resp_header_t *header)
         cc3100_remove_from_drv_queue(_nwp_com.queue[i]);
     }
 
-    spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
+    // spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
 
     /* when we have a request read the buffer to the request */
     if (req != NULL) {
+        DEBUG("[cc31xx] drv requests found \n");
         int16_t remainder = header->GenHeader.Len - req->desc_len;
         if (remainder < 0) {
             remainder = 0;
@@ -358,12 +350,13 @@ void cc3100_cmd_handler(cc3100_t *dev, cc3100_nwp_resp_header_t *header)
         if (remainder > 0) {
             cc3100_read_from_nwp(dev, sharedBuffer, remainder);
         }
-    } else {
-        /* otherwise read everything into shared buffer */
-        cc3100_read_from_nwp(dev, sharedBuffer, header->GenHeader.Len);
     }
+    // else {
+    //     /* otherwise read everything into shared buffer */
+    //     cc3100_read_from_nwp(dev, sharedBuffer, header->GenHeader.Len);
+    // }
 
-    spi_release(1);
+    // spi_release(1);
     unmask_nwp_rx_irqn();
 }
 
@@ -434,7 +427,7 @@ int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf)
     /* acquire spi */
     // spi_acquire(dev->params.spi, SPI_CS_UNDEF, SPI_SUB_MODE_0,
     // dev->params.spi);
-    spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
+    // spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
 
     /* write sync pattern to indicate read start */
     cc31xx_send_to_nwp(dev, &CPU_TO_NWP_CNYS_PATTERN.Short, sizeof(uint32_t));
@@ -450,12 +443,17 @@ int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf)
         if (0 == (SyncCnt % (uint32_t)4)) {
             cc3100_read_from_nwp(dev, &buf[4], 4);
         }
-
+        ROM_UtilsDelay(100);
         /* move content of buffer by one byte to the left */
         sliceFirstInBuffer((uint8_t *)buf, 8);
 
         /* increase sync counter to keep track of sliced of bytes */
         SyncCnt++;
+
+        /* fail transmission after no response */
+        if (SyncCnt == 40) {
+            return 0;
+        }
     }
 
     SyncCnt %= 4;
@@ -486,7 +484,7 @@ int cc31xx_read_cmd_header(cc3100_t *dev, cc3100_nwp_resp_header_t *buf)
     cc3100_read_from_nwp(dev, buf,
                          (uint8_t)((SyncCnt > 0) ? (4 - SyncCnt) : 0));
 
-    spi_release(1);
+    // spi_release(1);
     return 0;
 }
 
@@ -530,7 +528,7 @@ uint8_t cc31xx_send_nwp_cmd(cc3100_t *dev, cc31xx_nwp_msg_t *msg,
     /* aquire SPI device */
     // spi_acquire(dev->params.spi, SPI_CS_UNDEF, SPI_SUB_MODE_0,
     // dev->params.spi);
-    spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
+    // spi_acquire(1, SPI_CS_UNDEF, SPI_SUB_MODE_0, SPI_CLK_20MHZ);
 
     DEBUG("\033[0;34m[WIFI]\033[0m SEND CMD: \033[1;33m%x\033[0m\n",
           msg->opcode);
@@ -544,7 +542,9 @@ uint8_t cc31xx_send_nwp_cmd(cc3100_t *dev, cc31xx_nwp_msg_t *msg,
                                      msg->desc_len);
     cc3100_nwp_header_t header = { .opcode = msg->opcode, .len = desc_len };
     // add request to the request queue
-    volatile cc31xx_nwp_req_t req = { .opcode   = msg->opcode - 0x8000,
+    volatile cc31xx_nwp_req_t req = { .opcode = msg->resp_opcode != 0 ?
+                                                        msg->resp_opcode :
+                                                        msg->opcode - 0x8000,
                                       .wait     = true,
                                       .desc_len = res->res_len,
                                       .desc_buf = res->data };
@@ -572,24 +572,26 @@ uint8_t cc31xx_send_nwp_cmd(cc3100_t *dev, cc31xx_nwp_msg_t *msg,
 
     /* if a payload header is provided send it */
     if (msg->payload_hdr_len > 0) {
+        DEBUG("SEND HEADER\n");
         /* send command descriptions */
         cc31xx_send_to_nwp(dev, msg->payload_hdr_buf,
                            alignDataLen(msg->payload_hdr_len));
     }
 
     /* send payload if provided */
-    if (msg->payload_len > 0) {
+    if (msg->payload_buf != NULL && msg->payload_len > 0) {
+        DEBUG("SEND PAYLOAD\n");
         cc31xx_send_to_nwp(dev, msg->payload_buf,
                            alignDataLen(msg->payload_len));
     }
     /* release SPI device */
     // spi_release(dev->params.spi);
-    spi_release(1);
+    // spi_release(1);
 
     // wait for message response (rxHandler will copy the value to the res
     // buffer)
     // TODO: handle timeouts
-    while (req.wait) {
+    while (res != NULL && req.wait) {
         thread_yield();
     }
     return 0;
@@ -651,7 +653,7 @@ uint16_t _nwp_setup(cc3100_t *dev)
     }
 
     /* open RAW socket */
-    int16_t sock = _nwp_sock_create(dev, SL_AF_RF, SL_SOCK_RAW,  WIFI_CHANNEL);
+    int16_t sock = _nwp_sock_create(dev, SL_AF_RF, SL_SOCK_RAW, WIFI_CHANNEL);
     if (sock < 0) {
         DEBUG("[cc31xx] failed to open raw socket\n");
     }

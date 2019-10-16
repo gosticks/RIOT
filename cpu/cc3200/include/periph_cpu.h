@@ -48,7 +48,7 @@ extern "C" {
 /**
  * @brief   Length of the CPU_ID in octets
  */
-#define CPUID_LEN (4U)
+#define CPUID_LEN (6U)
 
 /**
  * @brief holds the current hibernation state of the MCU. READONLY and reading
@@ -84,8 +84,8 @@ typedef struct {
  * (without gaps) starting from GPT0, i.e. if multiple timers are enabled.
  */
 typedef struct {
-    uint8_t chn;   /**< number of channels */
-    uint8_t cfg;   /**< timer config word */
+    uint8_t chn; /**< number of channels */
+    uint8_t cfg; /**< timer config word */
 } timer_conf_t;
 
 /**
