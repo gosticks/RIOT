@@ -43,7 +43,7 @@ extern "C" {
  */
 /* 802.11n max header size 802.11(a/b/g) requires only 32 */
 #define IEEE80211_MAX_HDR_LEN (36U)
-#define IEEE80211_MIN_FRAME_LEN (IEEE80211_MAX_HDR_LEN)
+#define IEEE80211_MIN_FRAME_LEN (14U)
 
 #define IEEE80211_FCF_LEN (2U)
 #define IEEE80211_FCS_LEN (2U)
@@ -59,10 +59,10 @@ extern "C" {
 #define IEEE80211_FCF_FRAME_TO_DS (0x40)
 #define IEEE80211_FCF_FRAME_FROM_DS (0x80)
 
-#define IEEE80211_FCF_TYPE_MASK (0x3000)
-#define IEEE80211_FCF_SUBTYPE_MASK (0xF00)
+#define IEEE80211_FCF_TYPE_MASK (0xC)
+#define IEEE80211_FCF_SUBTYPE_MASK (0xF0)
 
-#define IEEE80211_FCF_VERS_MASK (0xC000)
+#define IEEE80211_FCF_VERS_MASK (0x3)
 #define IEEE80211_FCF_VERS_V0 (0x00)
 
 #define IEEE80211_FCF_SUBTYPE_FC_VAL (subtype) subtype << 8
@@ -104,22 +104,21 @@ typedef enum {
 
 /* Frame control field bitfield */
 typedef struct {
-    uint8_t version : 2;            // protocol version
-    uint8_t type : 2; // type
-    uint8_t subtype : 4;            // subtype
-    uint8_t to_ds : 1;                 // to destination flag
-    uint8_t from_ds : 1;               // from destination flag
-    uint8_t more_framents : 1;         // more frames flag
-    uint8_t retry : 1;                 // retry flag
-    uint8_t pm : 1;                    // power management
-    uint8_t more_data : 1;             // more_data
-    uint8_t protected_frame : 1;       // protected frame
+    uint8_t version : 2;         // protocol version
+    uint8_t type : 2;            // type
+    uint8_t subtype : 4;         // subtype
+    uint8_t to_ds : 1;           // to destination flag
+    uint8_t from_ds : 1;         // from destination flag
+    uint8_t more_framents : 1;   // more frames flag
+    uint8_t retry : 1;           // retry flag
+    uint8_t pm : 1;              // power management
+    uint8_t more_data : 1;       // more_data
+    uint8_t protected_frame : 1; // protected frame
     uint8_t htc_order : 1; // +HTC / Order (set to 1 in a non-QoS Data Frame)
 } ieee80211_frame_control_t;
 
 #define IEEE80211_FCF_DST_ADDR_MASK (0x0c)
 #define IEEE80211_FCF_DST_ADDR_VOID (0x00) /**< no destination address */
-
 
 #define IEEE80211_FCF_SRC_ADDR_MASK (0xc0)
 #define IEEE80211_FCF_SRC_ADDR_VOID (0x00) /**< no source address */
@@ -133,8 +132,8 @@ typedef struct {
 #define IEEE80211_CHANNEL_MIN_SUBGHZ \
     (0U) /**< Minimum channel for sub-GHz band */
 #define IEEE80211_CHANNEL_MAX_SUBGHZ \
-    (10U)                            /**< Maximum channel for sub-GHz band */
-#define IEEE80211_CHANNEL_MIN (1U) /**< Minimum channel for 2.4 GHz band */
+    (10U)                           /**< Maximum channel for sub-GHz band */
+#define IEEE80211_CHANNEL_MIN (1U)  /**< Minimum channel for 2.4 GHz band */
 #define IEEE80211_CHANNEL_MAX (12U) /**< Maximum channel for 2.4 GHz band */
 /** @} */
 
@@ -177,7 +176,6 @@ extern const uint8_t ieee80211_addr_bcast[IEEE80211_ADDRESS_LEN];
 #define IEEE80211_DEFAULT_CHANNEL (7U)
 #endif
 
-
 /**
  * @brief IEEE802.11 default TX power (in dBm)
  */
@@ -202,9 +200,9 @@ extern const uint8_t ieee80211_addr_bcast[IEEE80211_ADDRESS_LEN];
  * @return  Size of frame header on success.
  * @return  0, on error (flags set to unexpected state).
  */
-size_t ieee80211_set_frame_hdr(uint8_t *buf, const uint8_t *src, 
+size_t ieee80211_set_frame_hdr(uint8_t *buf, const uint8_t *src,
                                const uint8_t *dst, const uint8_t *bssid,
-                               uint16_t fc, uint8_t seq);
+                               uint16_t fc, uint16_t seq);
 
 /**
  * @brief   Get length of MAC header.
