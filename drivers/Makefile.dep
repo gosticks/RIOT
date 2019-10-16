@@ -108,6 +108,7 @@ endif
 
 ifneq (,$(filter cc3100,$(USEMODULE)))
   USEMODULE += irq_handler
+  USEMODULE += od_string
   USEMODULE += xtimer
   USEMODULE += netopt
   USEMODULE += netif
